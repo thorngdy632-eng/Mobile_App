@@ -39,7 +39,7 @@ class AppDrawer extends StatelessWidget {
                   ),
                   const SizedBox(height: 14),
                   const Text(
-                    'បង សុខា',
+                    'កសិករខ្មែរ',
                     style: TextStyle(
                         color: Colors.white,
                         fontSize: 18,

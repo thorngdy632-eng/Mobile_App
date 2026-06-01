@@ -16,12 +16,13 @@ import '../models/equipment_item.dart';
 
 // ─── Static data for sections not yet in the provider ────────────────────────
 
+// បញ្ជីប្រភេទសេវាកម្មថ្មីជាមួយ Emoji 
 const List<_CategoryItem> _categories = [
-  _CategoryItem(icon: Icons.agriculture,           label: 'ត្រាក់ទ័រ',    bg: Color(0xFF4CAF50)),
-  _CategoryItem(icon: Icons.grass,                 label: 'កោតស្រូវ',    bg: Color(0xFF66BB6A)),
-  _CategoryItem(icon: Icons.water_drop_outlined,   label: 'ប្រព័ន្ធទឹក',  bg: Color(0xFF29B6F6)),
-  _CategoryItem(icon: Icons.settings_outlined,     label: 'ម៉ាស៊ីនកាត់',  bg: Color(0xFFEF5350)),
-  _CategoryItem(icon: Icons.local_shipping_outlined,label: 'ដឹកជញ្ជូន',  bg: Color(0xFFFF7043)),
+  _CategoryItem(icon: '🚜', label: 'ត្រាក់ទ័រ',   bg: Color(0xFF4CAF50)), 
+  _CategoryItem(icon: '🌾', label: 'ច្រូតស្រូវ',   bg: Color(0xFF81C784)), 
+  _CategoryItem(icon: '🛸', label: 'ដ្រូន',       bg: Color(0xFF29B6F6)), 
+  _CategoryItem(icon: '🛠', label: 'គោយន្ត',     bg: Color(0xFFFFB74D)), 
+  _CategoryItem(icon: '💨', label: 'បាញ់ថ្នាំ',    bg: Color(0xFFEF5350)), 
 ];
 
 const List<_PromoItem> _promos = [
@@ -45,7 +46,7 @@ final List<EquipmentItem> _equipment = [
     price: '\$45',
     location: 'ស្រុកបាទី',
     rating: 4.9,
-    imageAsset: 'tractor',
+    imageAsset: 'tractor', // 👈 ប្រើប្រាស់សម្រាប់រើសពណ៌ និងរូបភាពកាត
     badge: EquipmentBadge.none,
   ),
   const EquipmentItem(
@@ -53,7 +54,7 @@ final List<EquipmentItem> _equipment = [
     price: '\$30',
     location: 'ក្រុងសិរីស្វាយប៉ាវ',
     rating: 4.7,
-    imageAsset: 'harvester',
+    imageAsset: 'harvester', // 👈 ប្រើប្រាស់សម្រាប់រើសពណ៌ និងរូបភាពកាត
     badge: EquipmentBadge.hot,
   ),
 ];
@@ -81,7 +82,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // White status-bar icons — green header is behind them
     SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
@@ -93,32 +93,23 @@ class _HomeScreenState extends State<HomeScreen> {
       key: _scaffoldKey,
       drawer: const AppDrawer(),
       backgroundColor: AppColors.background,
-      // ── Native bottom nav bar (replaces the old mock AndroidNavBar) ─────────
       bottomNavigationBar: _buildBottomNav(),
-      // top:false → green header bleeds behind the real system status bar
       body: SafeArea(
         top: false,
         child: CustomScrollView(
           slivers: [
-            // 1 ── Green hero header (status-bar-aware)
             SliverToBoxAdapter(child: _buildHeroHeader()),
-            // 2 ── Search bar
             SliverToBoxAdapter(child: _buildSearchBar()),
-            // 3 ── Category grid
             SliverToBoxAdapter(child: _buildCategories()),
-            // 4 ── Promo banner carousel
             SliverToBoxAdapter(child: _buildPromoBanner()),
-            // 5 ── Scheduled jobs
             SliverToBoxAdapter(child: _buildSectionLabel(
               'ប្រភេទសេវាកម្ម', 'មើលទាំងអស់ ›', onTap: () {})),
             SliverToBoxAdapter(child: _buildScheduledJobs()),
-            // 6 ── Equipment rental
             SliverToBoxAdapter(child: _buildSectionLabel(
-              'លក្ខខណ្ឌ រៅបណ្តាក', 'ទាំងអស់ ›',
+              'ទំនិញពេញនិយម', 'ទាំងអស់ ›',
               onTap: () => Navigator.push(context,
                   MaterialPageRoute(builder: (_) => const AllJobsScreen())))),
             SliverToBoxAdapter(child: _buildEquipmentCards()),
-            // bottom breathing room for nav bar
             const SliverToBoxAdapter(child: SizedBox(height: 24)),
           ],
         ),
@@ -126,7 +117,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── 1. Hero header ─────────────────────────────────────────────────────────
   Widget _buildHeroHeader() {
     final top = MediaQuery.of(context).padding.top;
     return Consumer<AppProvider>(
@@ -142,7 +132,6 @@ class _HomeScreenState extends State<HomeScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Top row: menu + greeting + notification + avatar
             Row(
               children: [
                 GestureDetector(
@@ -165,7 +154,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ],
                   ),
                 ),
-                // Notification bell
                 Stack(
                   clipBehavior: Clip.none,
                   children: [
@@ -201,7 +189,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
                 const SizedBox(width: 10),
-                // Avatar
                 Container(
                   width: 38,
                   height: 38,
@@ -216,11 +203,10 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             const SizedBox(height: 10),
-            // Large Khmer greeting headline
             RichText(
               text: const TextSpan(children: [
                 TextSpan(
-                  text: 'សាសម រ័ត្នកការ៍ ',
+                  text: 'សមាគមន៍កសិករខ្មែរ, ',
                   style: TextStyle(
                       color: Colors.white,
                       fontSize: 24,
@@ -228,7 +214,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       height: 1.3),
                 ),
                 TextSpan(
-                  text: 'ចោះជួល!',
+                  text: 'តោះជួល!',
                   style: TextStyle(
                       color: Color(0xFFA5D6A7),
                       fontSize: 24,
@@ -243,7 +229,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── 2. Search bar ──────────────────────────────────────────────────────────
   Widget _buildSearchBar() {
     return Container(
       color: const Color(0xFF388E3C),
@@ -261,7 +246,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 8),
             const Expanded(
               child: Text(
-                'ស្វែករកសម្ភារ ផ្ទេរ ទំនួល...',
+                'ស្វែងរកគ្រឿងចក្រ ឬ សេវាកម្មផ្សេងៗ...',
                 style: TextStyle(color: Color(0xFFBDBDBD), fontSize: 13),
               ),
             ),
@@ -272,8 +257,7 @@ class _HomeScreenState extends State<HomeScreen> {
                 color: const Color(0xFF2E7D32),
                 borderRadius: BorderRadius.circular(7),
               ),
-              child:
-                  const Icon(Icons.tune, color: Colors.white, size: 14),
+              child: const Icon(Icons.tune, color: Colors.white, size: 14),
             ),
           ],
         ),
@@ -281,7 +265,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── 3. Categories ──────────────────────────────────────────────────────────
   Widget _buildCategories() {
     return Container(
       color: Colors.white,
@@ -289,7 +272,7 @@ class _HomeScreenState extends State<HomeScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildSectionLabelInline('ប្រភេសសេវាកម្ម', 'មើលទាំងអស់ ›'),
+          _buildSectionLabelInline('ប្រភេទសេវាកម្ម', 'មើលទាំងអស់ ›'),
           const SizedBox(height: 14),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -303,7 +286,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── 4. Promo banner ────────────────────────────────────────────────────────
   Widget _buildPromoBanner() {
     return Container(
       color: Colors.white,
@@ -330,7 +312,6 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           ),
           const SizedBox(height: 10),
-          // Page dots
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(
@@ -354,7 +335,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── 5. Scheduled jobs ──────────────────────────────────────────────────────
   Widget _buildScheduledJobs() {
     return Consumer<AppProvider>(
       builder: (_, provider, __) => provider.isLoading
@@ -379,7 +359,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── 6. Equipment rental cards ──────────────────────────────────────────────
   Widget _buildEquipmentCards() {
     return SizedBox(
       height: 200,
@@ -403,7 +382,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Bottom navigation bar (native Flutter — no mock widget) ───────────────
   Widget _buildBottomNav() {
     return NavigationBar(
       selectedIndex: _bottomIndex,
@@ -415,19 +393,19 @@ class _HomeScreenState extends State<HomeScreen> {
         NavigationDestination(
           icon: Icon(Icons.home_outlined),
           selectedIcon: Icon(Icons.home, color: AppColors.primaryGreen),
-          label: 'វិតដំបូង',
+          label: 'ទំព័រដើម',
         ),
         NavigationDestination(
           icon: Icon(Icons.calendar_today_outlined),
           selectedIcon:
               Icon(Icons.calendar_today, color: AppColors.primaryGreen),
-          label: 'កាលវភ្ជាប',
+          label: 'កាលវិភាគ',
         ),
         NavigationDestination(
           icon: Icon(Icons.account_balance_wallet_outlined),
           selectedIcon: Icon(Icons.account_balance_wallet,
               color: AppColors.primaryGreen),
-          label: 'ការ',
+          label: 'កាបូប',
         ),
         NavigationDestination(
           icon: Icon(Icons.person_outline),
@@ -438,7 +416,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // ── Helpers ────────────────────────────────────────────────────────────────
   Widget _buildSectionLabel(String title, String action,
       {required VoidCallback onTap}) {
     return Padding(
@@ -471,7 +448,7 @@ class _HomeScreenState extends State<HomeScreen> {
 // ─── Sub-widgets ──────────────────────────────────────────────────────────────
 
 class _CategoryItem {
-  final IconData icon;
+  final String icon; 
   final String label;
   final Color bg;
   const _CategoryItem({required this.icon, required this.label, required this.bg});
@@ -492,7 +469,12 @@ class _CategoryButton extends StatelessWidget {
             color: item.bg,
             borderRadius: BorderRadius.circular(14),
           ),
-          child: Icon(item.icon, color: Colors.white, size: 26),
+          child: Center(
+            child: Text(
+              item.icon,
+              style: const TextStyle(fontSize: 26), 
+            ),
+          ),
         ),
         const SizedBox(height: 6),
         SizedBox(
@@ -574,7 +556,6 @@ class _PromoBannerCard extends StatelessWidget {
               ],
             ),
           ),
-          // Accent side stripe
           const SizedBox(width: 8),
           Container(
             width: 6,
@@ -596,15 +577,17 @@ class _EquipmentCard extends StatelessWidget {
   const _EquipmentCard({required this.item, required this.onTap});
 
   static const Map<String, _ImgCfg> _cfgs = {
-    'tractor':   _ImgCfg(Icons.agriculture,  Color(0xFFE8F5E9), Color(0xFF43A047)),
-    'harvester': _ImgCfg(Icons.grass,         Color(0xFFFFF8E1), Color(0xFFF9A825)),
-    'pump':      _ImgCfg(Icons.water_drop,    Color(0xFFE3F2FD), Color(0xFF1E88E5)),
+    'tractor':   _ImgCfg('🚜', Color(0xFFE8F5E9), Color(0xFF43A047)), // Green
+    'harvester': _ImgCfg('🌾', Color(0xFFFFF8E1), Color(0xFFF9A825)), // Yellow
+    'pump':      _ImgCfg('🛸', Color(0xFFE3F2FD), Color(0xFF1E88E5)), // Blue
+    'koyon':     _ImgCfg('🛠', Color(0xFFFFF3E0), Color(0xFFFF9800)), // Orange
+    'spray':     _ImgCfg('💨', Color(0xFFFFEBEE), Color(0xFFEF5350)), // Red
   };
 
   @override
   Widget build(BuildContext context) {
     final cfg = _cfgs[item.imageAsset] ??
-        const _ImgCfg(Icons.build, Color(0xFFF5F5F5), Color(0xFF9E9E9E));
+        const _ImgCfg('⚙️', Color(0xFFF5F5F5), Color(0xFF9E9E9E));
 
     return GestureDetector(
       onTap: onTap,
@@ -623,7 +606,6 @@ class _EquipmentCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image / icon area
             Stack(
               children: [
                 Container(
@@ -635,9 +617,8 @@ class _EquipmentCard extends StatelessWidget {
                         const BorderRadius.vertical(top: Radius.circular(14)),
                   ),
                   child: Center(
-                      child: Icon(cfg.icon, color: cfg.fg, size: 52)),
+                      child: Text(cfg.icon, style: const TextStyle(fontSize: 45))),
                 ),
-                // Badge
                 if (item.badge != EquipmentBadge.none)
                   Positioned(
                     top: 8,
@@ -662,7 +643,6 @@ class _EquipmentCard extends StatelessWidget {
                   ),
               ],
             ),
-            // Details
             Padding(
               padding: const EdgeInsets.all(10),
               child: Column(
@@ -725,7 +705,7 @@ class _EquipmentCard extends StatelessWidget {
 }
 
 class _ImgCfg {
-  final IconData icon;
+  final String icon; 
   final Color bg;
   final Color fg;
   const _ImgCfg(this.icon, this.bg, this.fg);

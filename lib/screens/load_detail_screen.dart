@@ -23,7 +23,7 @@ class _LoadDetailScreenState extends State<LoadDetailScreen> {
     setState(() => _isAccepting = false);
     ScaffoldMessenger.of(context).showSnackBar(
       const SnackBar(
-        content: Text('ការទទួលយកការដឹកជញ្ជូន បានជោគជ័យ!'),
+        content: Text('ការបម្រើសេវាកម្មទទួល បានជោគជ័យ!'),
         backgroundColor: AppColors.green,
         duration: Duration(seconds: 3),
       ),
@@ -38,7 +38,7 @@ class _LoadDetailScreenState extends State<LoadDetailScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('ព័ត៌មានការដឹក'),
+        title: const Text('បម្រើសេវាកម្ម'),
         leading: BackButton(onPressed: () => Navigator.pop(context)),
       ),
       body: SingleChildScrollView(
