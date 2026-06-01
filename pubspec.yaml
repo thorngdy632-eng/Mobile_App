@@ -1,0 +1,36 @@
+name: agri_logistics
+description: Agricultural Logistics App (Khmer) - ប្រព័ន្ធដឹកជញ្ជូនកសិកម្ម
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # State management
+  provider: ^6.1.2
+  # Google Fonts (includes Noto Sans Khmer)
+  google_fonts: ^6.2.1
+  # Icons
+  flutter_svg: ^2.0.10+1
+  # UI enhancements
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  # If you download Noto Sans Khmer locally, list here:
+  # fonts:
+  #   - family: NotoSansKhmer
+  #     fonts:
+  #       - asset: assets/fonts/NotoSansKhmer-Regular.ttf
+  #       - asset: assets/fonts/NotoSansKhmer-Medium.ttf
+  #         weight: 500
+  #       - asset: assets/fonts/NotoSansKhmer-Bold.ttf
+  #         weight: 700
