@@ -2,17 +2,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
-import '../providers/app_provider.dart';
-import '../theme/app_theme.dart';
-import '../widgets/job_card.dart';
-import '../widgets/backhaul_card.dart';
+import '../../providers/app_provider.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/job_card.dart';
+import '../../widgets/backhaul_card.dart';
 import 'notifications_screen.dart';
 import 'job_detail_screen.dart';
 import 'load_detail_screen.dart';
 import 'all_jobs_screen.dart';
 import 'drawer_menu.dart';
 import 'equipment_detail_screen.dart';
-import '../models/equipment_item.dart';
+import '../../models/equipment_item.dart';
+import '../../theme/app_colors.dart';
 
 // ─── Static data for sections not yet in the provider ────────────────────────
 

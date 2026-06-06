@@ -1,6 +1,6 @@
 // lib/widgets/android_status_bar.dart
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 
 /// Simulates an Android status bar (time + icons)
 class AndroidStatusBar extends StatelessWidget {

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "253790293160",
+    "project_id": "agri-cambodia",
+    "storage_bucket": "agri-cambodia.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:253790293160:android:0a844a4183e0df00efc69d",
+        "android_client_info": {
+          "package_name": "com.example.agri_logistics"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBGzaqxTXX4PlgDjCkFZhNx0-9c6g5xqmM"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

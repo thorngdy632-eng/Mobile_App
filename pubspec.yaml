@@ -1,36 +1,58 @@
-name: agri_logistics
-description: Agricultural Logistics App (Khmer) - ប្រព័ន្ធដឹកជញ្ជូនកសិកម្ម
+name: taohjoul
+description: "តោះជួល! - Agricultural Equipment Rental App"
 publish_to: 'none'
 version: 1.0.0+1
 
 environment:
-  sdk: '>=3.3.0 <4.0.0'
+  # Updated minimum SDK to 3.5.0 to stay compatible with Flutter 3.44+ 
+  sdk: '>=3.5.0 <4.0.0'
 
 dependencies:
   flutter:
     sdk: flutter
+  cupertino_icons: ^1.0.6
+
+  # Firebase
+  firebase_core: ^4.10.0
+  firebase_auth: ^6.5.2
+  cloud_firestore: ^6.5.0
+
   # State management
   provider: ^6.1.2
-  # Google Fonts (includes Noto Sans Khmer)
-  google_fonts: ^6.2.1
-  # Icons
+
+  # Google Maps & Location
+  google_maps_flutter: ^2.9.0
+  geolocator: ^14.0.2
+  geocoding: ^4.0.0
+
+  # UI
   flutter_svg: ^2.0.10+1
-  # UI enhancements
-  intl: ^0.19.0
+  cached_network_image: ^3.4.1
+  shimmer: ^3.0.0
+
+  # Utils
+  intl: ^0.20.2
+  shared_preferences: ^2.3.2
+  url_launcher: ^6.3.1
+  permission_handler: ^12.0.3
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^4.0.0
+  flutter_lints: ^6.0.0
+
+dependency_overrides:
+  # This forces your map packages to use the modern math types required by the framework
+  vector_math: ^2.4.0
 
 flutter:
   uses-material-design: true
-  # If you download Noto Sans Khmer locally, list here:
+
+  assets:
+    - assets/images/
+    - assets/icons/
+
   # fonts:
-  #   - family: NotoSansKhmer
+  #   - family: KhmerOS
   #     fonts:
-  #       - asset: assets/fonts/NotoSansKhmer-Regular.ttf
-  #       - asset: assets/fonts/NotoSansKhmer-Medium.ttf
-  #         weight: 500
-  #       - asset: assets/fonts/NotoSansKhmer-Bold.ttf
-  #         weight: 700
+  #       - asset: assets/fonts/KhmerOS.ttf

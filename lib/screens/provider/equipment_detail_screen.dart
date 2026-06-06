@@ -1,7 +1,8 @@
 // lib/screens/equipment_detail_screen.dart
 import 'package:flutter/material.dart';
-import '../models/equipment_item.dart';
-import '../theme/app_theme.dart';
+import '../../models/equipment_item.dart';
+import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 
 class EquipmentDetailScreen extends StatefulWidget {
   final EquipmentItem item;

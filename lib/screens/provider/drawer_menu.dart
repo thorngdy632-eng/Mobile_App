@@ -1,8 +1,9 @@
 // lib/screens/drawer_menu.dart
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
-
-// No import of android_nav_bar or android_status_bar — both deleted.
+import 'package:firebase_auth/firebase_auth.dart'; // 💡 បន្ថែម Firebase Auth ដើម្បី Sign Out
+import '../auth/login_screen.dart';                 // 💡 Import ទំព័រ Login ពិតប្រាកដរបស់អ្នក
+import '../../theme/app_theme.dart';
+import '../../theme/app_colors.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -13,9 +14,6 @@ class AppDrawer extends StatelessWidget {
       child: Column(
         children: [
           // ── Header ─────────────────────────────────────────────────────────
-          // MediaQuery.of(context).padding.top gives the REAL device status-bar
-          // height (e.g. 44 px on iPhone 14, 24 px on Pixel) so the header
-          // content is never hidden behind the status bar on any device.
           Builder(builder: (context) {
             final statusBarHeight = MediaQuery.of(context).padding.top;
             return Container(
@@ -27,7 +25,6 @@ class AppDrawer extends StatelessWidget {
                   end: Alignment.bottomRight,
                 ),
               ),
-              // top inset = real status-bar height + 16 px visual breathing room
               padding: EdgeInsets.fromLTRB(16, statusBarHeight + 16, 16, 24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -112,22 +109,42 @@ class AppDrawer extends StatelessWidget {
                   label: 'ចេញ',
                   iconColor: Colors.red,
                   onTap: () {
-                    Navigator.pop(context);
+                    Navigator.pop(context); // ១. បិទផ្ទាំង Drawer ចំហៀងជាមុនសិន
+                    
+                    final mainNavigator = Navigator.of(context);
+
                     showDialog(
                       context: context,
-                      builder: (_) => AlertDialog(
-                        title: const Text('ចេញពីប្រព័ន្ធ?'),
-                        content:
-                            const Text('តើអ្នកប្រាកដចង់ចេញពីប្រព័ន្ធ?'),
+                      builder: (dialogContext) => AlertDialog(
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+                        title: const Text('ចេញពីប្រព័ន្ធ?', style: TextStyle(fontWeight: FontWeight.bold)),
+                        content: const Text('តើអ្នកប្រាកដចញ្ចង់ចេញពីប្រព័ន្ធ?'),
                         actions: [
                           TextButton(
-                            onPressed: () => Navigator.pop(context),
-                            child: const Text('ទេ'),
+                            onPressed: () => Navigator.pop(dialogContext), 
+                            child: const Text('ទេ', style: TextStyle(color: Colors.grey)),
                           ),
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.red),
-                            onPressed: () => Navigator.pop(context),
+                              backgroundColor: Colors.red,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                            onPressed: () async {
+                              // ២. បិទផ្ទាំង Dialog
+                              Navigator.pop(dialogContext); 
+                              
+                              // ៣. លុប Session ចេញពី Firebase Auth ដើម្បីឱ្យដាច់គណនីពិតប្រាកដ
+                              await FirebaseAuth.instance.signOut();
+                              
+                              // ៤. រុញទៅកាន់ LoginScreen ពិតប្រាកដរបស់អ្នកវិញ
+                              mainNavigator.pushAndRemoveUntil(
+                                MaterialPageRoute(
+                                  builder: (context) => const LoginScreen(), 
+                                ),
+                                (route) => false, // លុប History ទំព័រចាស់ៗទាំងអស់ចោល
+                              );
+                            },
                             child: const Text('បាទ ចេញ'),
                           ),
                         ],
@@ -144,8 +161,7 @@ class AppDrawer extends StatelessWidget {
             padding: const EdgeInsets.all(16),
             child: Text(
               'កំណែ 1.0.0',
-              style:
-                  TextStyle(color: Colors.grey.shade500, fontSize: 12),
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
           ),
         ],

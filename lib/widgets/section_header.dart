@@ -1,6 +1,6 @@
 // lib/widgets/section_header.dart
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 
 /// Reusable section header with icon + title
 class SectionHeader extends StatelessWidget {

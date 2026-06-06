@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../models/scheduled_job.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 
 /// Card displaying a single scheduled job
 class JobCard extends StatelessWidget {

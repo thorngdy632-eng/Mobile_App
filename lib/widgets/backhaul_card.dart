@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../models/backhaul_load.dart';
 import '../theme/app_theme.dart';
+import '../theme/app_colors.dart';
 
 /// Card displaying a single backhaul load opportunity
 class BackhaulCard extends StatelessWidget {

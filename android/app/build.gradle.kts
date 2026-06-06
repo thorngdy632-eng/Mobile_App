@@ -1,12 +1,17 @@
 plugins {
     id("com.android.application")
+    // START: FlutterFire Configuration
+    id("com.google.gms.google-services")
+    // END: FlutterFire Configuration
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
     namespace = "com.example.agri_logistics"
-    compileSdk = flutter.compileSdkVersion
+    
+    // Updated to version 36 to support Google Maps, Geolocator, and Sqflite plugins
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
@@ -20,7 +25,9 @@ android {
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        
+        // Updated to version 36 to match compileSdk requirements
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }

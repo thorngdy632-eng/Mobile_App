@@ -1,89 +1,160 @@
-// lib/theme/app_theme.dart
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-
-class AppColors {
-  // Primary palette
-  static const Color primary = Color(0xFF1565C0);      // blue-700
-  static const Color primaryLight = Color(0xFFE3F2FD); // blue-50
-  static const Color primaryMid = Color(0xFF1E88E5);   // blue-600
-  static const Color primaryGreen = Color(0xFF2E7D32); // green-700
-
-  static const Color purple = Color(0xFF7B1FA2);
-  static const Color purpleLight = Color(0xFFF3E5F5);
-
-  static const Color green = Color(0xFF2E7D32);
-  static const Color greenLight = Color(0xFFE8F5E9);
-  static const Color greenAccent = Color(0xFF43A047);
-  static const Color greenBg = Color(0xFFE8F5E9);
-
-  static const Color amber = Color(0xFFFFC107);
-  static const Color amberBg = Color(0xFFF57C00);
-  static const Color orange = Color(0xFFE64A19);
-  static const Color badgeHot = Color(0xFFE53935);
-
-  // Neutral
-  static const Color background = Color(0xFFF5F5F5);
-  static const Color surface = Color(0xFFFFFFFF);
-  static const Color cardBorder = Color(0xFFBBDEFB);
-
-  static const Color textPrimary = Color(0xFF212121);
-  static const Color textSecondary = Color(0xFF616161);
-  static const Color textMuted = Color(0xFF9E9E9E);
-  static const Color textBlue = Color(0xFF1565C0);
-
-  // Status
-  static const Color statusConfirmed = Color(0xFFE8F5E9);
-  static const Color statusConfirmedText = Color(0xFF2E7D32);
-  static const Color statusPending = Color(0xFFFFF8E1);
-  static const Color statusPendingText = Color(0xFFF57F17);
-
-  // Android system bars
-  static const Color androidBar = Color(0xFF000000);
-  static const Color androidBarText = Color(0xFFFFFFFF);
-}
 
 class AppTheme {
+  // Brand Colors
+  static const Color primaryGreen = Color(0xFF2E7D32);
+  static const Color lightGreen = Color(0xFF4CAF50);
+  static const Color accentGold = Color(0xFFF9A825);
+  static const Color darkGreen = Color(0xFF1B5E20);
+  static const Color bgLight = Color(0xFFF1F8E9);
+  static const Color bgCard = Color(0xFFFFFFFF);
+  static const Color textPrimary = Color(0xFF1A1A1A);
+  static const Color textSecondary = Color(0xFF616161);
+  static const Color errorRed = Color(0xFFD32F2F);
+  static const Color adminBlue = Color(0xFF1565C0);
+  static const Color farmerGreen = Color(0xFF2E7D32);
+  static const Color providerOrange = Color(0xFFE65100);
+
   static ThemeData get theme {
     return ThemeData(
-      useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: AppColors.primary,
-        brightness: Brightness.light,
+        seedColor: primaryGreen,
+        primary: primaryGreen,
+        secondary: accentGold,
+        background: bgLight,
+        surface: bgCard,
+        error: errorRed,
       ),
-      scaffoldBackgroundColor: AppColors.background,
-      textTheme: GoogleFonts.notoSansKhmerTextTheme().copyWith(
-        // fallback for non-Khmer chars
-        displayLarge: GoogleFonts.notoSansKhmer(fontSize: 32, fontWeight: FontWeight.bold),
-        titleLarge: GoogleFonts.notoSansKhmer(fontSize: 20, fontWeight: FontWeight.w500),
-        titleMedium: GoogleFonts.notoSansKhmer(fontSize: 18, fontWeight: FontWeight.w500),
-        bodyLarge: GoogleFonts.notoSansKhmer(fontSize: 16),
-        bodyMedium: GoogleFonts.notoSansKhmer(fontSize: 14),
-        bodySmall: GoogleFonts.notoSansKhmer(fontSize: 12),
-      ),
-      appBarTheme: AppBarTheme(
-        backgroundColor: AppColors.surface,
-        foregroundColor: AppColors.textPrimary,
-        elevation: 1,
-        shadowColor: Colors.black26,
-        titleTextStyle: GoogleFonts.notoSansKhmer(
-          fontSize: 20,
-          fontWeight: FontWeight.w500,
-          color: AppColors.textPrimary,
+      useMaterial3: true,
+      fontFamily: 'KhmerOSBattambang',
+      textTheme: const TextTheme(
+        displayLarge: TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          fontWeight: FontWeight.w700,
+          fontSize: 28,
+          color: textPrimary,
         ),
-      ),
-      cardTheme: const CardThemeData(
-        color: AppColors.surface,
-        elevation: 1,
-        margin: EdgeInsets.zero,
+        displayMedium: TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          fontWeight: FontWeight.w700,
+          fontSize: 24,
+          color: textPrimary,
+        ),
+        headlineLarge: TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          fontWeight: FontWeight.w700,
+          fontSize: 20,
+          color: textPrimary,
+        ),
+        headlineMedium: TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          fontWeight: FontWeight.w600,
+          fontSize: 18,
+          color: textPrimary,
+        ),
+        bodyLarge: TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          fontSize: 16,
+          color: textPrimary,
+        ),
+        bodyMedium: TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          fontSize: 14,
+          color: textSecondary,
+        ),
+        labelLarge: TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          fontWeight: FontWeight.w600,
+          fontSize: 16,
+          color: Colors.white,
+        ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primary,
+          backgroundColor: primaryGreen,
           foregroundColor: Colors.white,
-          textStyle: GoogleFonts.notoSansKhmer(fontSize: 14, fontWeight: FontWeight.w500),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          minimumSize: const Size(double.infinity, 52),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+          textStyle: const TextStyle(
+            fontFamily: 'KhmerOSBattambang',
+            fontWeight: FontWeight.w600,
+            fontSize: 16,
+          ),
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: Colors.white,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: primaryGreen, width: 2),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: const BorderSide(color: errorRed),
+        ),
+        hintStyle: const TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          color: Color(0xFFBDBDBD),
+          fontSize: 14,
+        ),
+        labelStyle: const TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          color: textSecondary,
+          fontSize: 14,
+        ),
+      ),
+      cardTheme: CardThemeData(
+        elevation: 2,
+        shadowColor: Colors.black12,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
+        color: bgCard,
+      ),
+      appBarTheme: const AppBarTheme(
+        backgroundColor: primaryGreen,
+        foregroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+        titleTextStyle: TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          fontWeight: FontWeight.w700,
+          fontSize: 18,
+          color: Colors.white,
+        ),
+      ),
+      bottomNavigationBarTheme: const BottomNavigationBarThemeData(
+        selectedItemColor: primaryGreen,
+        unselectedItemColor: Color(0xFF9E9E9E),
+        backgroundColor: Colors.white,
+        elevation: 8,
+        selectedLabelStyle: TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          fontSize: 12,
+        ),
+        unselectedLabelStyle: TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          fontSize: 12,
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        contentTextStyle: const TextStyle(
+          fontFamily: 'KhmerOSBattambang',
+          fontSize: 14,
         ),
       ),
     );
