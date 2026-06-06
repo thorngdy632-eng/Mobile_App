@@ -1,8 +1,8 @@
 // lib/screens/drawer_menu.dart
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart'; // 💡 បន្ថែម Firebase Auth ដើម្បី Sign Out
-import '../auth/login_screen.dart';                 // 💡 Import ទំព័រ Login ពិតប្រាកដរបស់អ្នក
-import '../../theme/app_theme.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
+import '../auth/login_screen.dart';
 import '../../theme/app_colors.dart';
 
 class AppDrawer extends StatelessWidget {
@@ -10,10 +10,13 @@ class AppDrawer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final auth = context.watch<AuthProvider>();
+    final user = auth.currentUser;
+
     return Drawer(
       child: Column(
         children: [
-          // ── Header ─────────────────────────────────────────────────────────
+          // ── Header — reads real user data from AuthProvider ────────────────
           Builder(builder: (context) {
             final statusBarHeight = MediaQuery.of(context).padding.top;
             return Container(
@@ -29,24 +32,52 @@ class AppDrawer extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const CircleAvatar(
+                  CircleAvatar(
                     radius: 32,
                     backgroundColor: Colors.white24,
-                    child: Icon(Icons.person, color: Colors.white, size: 38),
+                    // Show first letter of name if available
+                    child: user?.fullName.isNotEmpty == true
+                        ? Text(
+                            user!.fullName[0].toUpperCase(),
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 26,
+                                fontWeight: FontWeight.bold),
+                          )
+                        : const Icon(Icons.person, color: Colors.white, size: 38),
                   ),
                   const SizedBox(height: 14),
-                  const Text(
-                    'កសិករខ្មែរ',
-                    style: TextStyle(
+                  // Real full name from Firestore
+                  Text(
+                    user?.fullName ?? 'កសិករ',
+                    style: const TextStyle(
                         color: Colors.white,
                         fontSize: 18,
                         fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 2),
+                  // Real phone number from Firestore
                   Text(
-                    '+855 12 345 678',
+                    user?.phoneNumber ?? '',
                     style: TextStyle(
                         color: Colors.white.withOpacity(0.75), fontSize: 14),
+                  ),
+                  const SizedBox(height: 4),
+                  // Role badge
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      user?.roleDisplayName ?? '',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600),
+                    ),
                   ),
                 ],
               ),
@@ -109,40 +140,37 @@ class AppDrawer extends StatelessWidget {
                   label: 'ចេញ',
                   iconColor: Colors.red,
                   onTap: () {
-                    Navigator.pop(context); // ១. បិទផ្ទាំង Drawer ចំហៀងជាមុនសិន
-                    
+                    Navigator.pop(context);
                     final mainNavigator = Navigator.of(context);
-
                     showDialog(
                       context: context,
                       builder: (dialogContext) => AlertDialog(
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-                        title: const Text('ចេញពីប្រព័ន្ធ?', style: TextStyle(fontWeight: FontWeight.bold)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(15)),
+                        title: const Text('ចេញពីប្រព័ន្ធ?',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
                         content: const Text('តើអ្នកប្រាកដចញ្ចង់ចេញពីប្រព័ន្ធ?'),
                         actions: [
                           TextButton(
-                            onPressed: () => Navigator.pop(dialogContext), 
-                            child: const Text('ទេ', style: TextStyle(color: Colors.grey)),
+                            onPressed: () => Navigator.pop(dialogContext),
+                            child: const Text('ទេ',
+                                style: TextStyle(color: Colors.grey)),
                           ),
                           ElevatedButton(
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.red,
                               foregroundColor: Colors.white,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8)),
                             ),
                             onPressed: () async {
-                              // ២. បិទផ្ទាំង Dialog
-                              Navigator.pop(dialogContext); 
-                              
-                              // ៣. លុប Session ចេញពី Firebase Auth ដើម្បីឱ្យដាច់គណនីពិតប្រាកដ
-                              await FirebaseAuth.instance.signOut();
-                              
-                              // ៤. រុញទៅកាន់ LoginScreen ពិតប្រាកដរបស់អ្នកវិញ
+                              Navigator.pop(dialogContext);
+                              // Use AuthProvider.logout() so state is cleared properly
+                              await auth.logout();
                               mainNavigator.pushAndRemoveUntil(
                                 MaterialPageRoute(
-                                  builder: (context) => const LoginScreen(), 
-                                ),
-                                (route) => false, // លុប History ទំព័រចាស់ៗទាំងអស់ចោល
+                                    builder: (context) => const LoginScreen()),
+                                (route) => false,
                               );
                             },
                             child: const Text('បាទ ចេញ'),

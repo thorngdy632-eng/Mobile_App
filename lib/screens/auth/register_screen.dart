@@ -1,11 +1,19 @@
+// lib/screens/auth/register_screen.dart
+import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
-import '../../theme/app_theme.dart';
 import '../admin/admin_dashboard.dart';
 import '../farmer/farmer_home.dart';
 import '../provider/provider_home.dart';
+import 'shared_auth_widgets.dart';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// REGISTER SCREEN — 3-step stepper with ID card image upload
+// ─────────────────────────────────────────────────────────────────────────────
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -14,223 +22,425 @@ class RegisterScreen extends StatefulWidget {
   State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _RegisterScreenState extends State<RegisterScreen>
+    with TickerProviderStateMixin {
+  // ── Form state ────────────────────────────────────────────────────────────
   final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _phoneController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
-  final _addressController = TextEditingController();
-  final _serviceTypeController = TextEditingController();
-  final _idCardController = TextEditingController(); // Added for Service Provider ID Card
+  final _nameCtrl = TextEditingController();
+  final _phoneCtrl = TextEditingController();
+  final _addressCtrl = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
 
-  UserRole _selectedRole = UserRole.farmer;
-  bool _obscurePassword = true;
+  UserRole _role = UserRole.farmer;
+  String? _serviceType;
+  bool _obscurePass = true;
   bool _obscureConfirm = true;
-  int _currentStep = 0;
+  int _step = 0; // 0 = personal, 1 = role, 2 = security
+
+  // ── ID card images (service provider) ────────────────────────────────────
+  XFile? _idFront;
+  XFile? _idBack;
+  Uint8List? _idFrontBytes;
+  Uint8List? _idBackBytes;
+  final _picker = ImagePicker();
+
+  // ── Animation ────────────────────────────────────────────────────────────
+  late final AnimationController _fadeCtrl;
+  late final Animation<double> _fade;
 
   final List<String> _serviceTypes = [
-    'ម៉ាស៊ីនស្ទូច',
-    'ម៉ាស៊ីនដាំ',
-    'ម៉ាស៊ីនបូម',
-    'រថយន្តដឹក',
-    'គ្រឿងសសៃ',
-    'សសៃបូម',
-    'ម៉ាស៊ីនកៀរ',
-    'សេវាផ្សេងៗ',
+    'ម៉ាស៊ីនស្ទូច', 'ម៉ាស៊ីនដាំ', 'ម៉ាស៊ីនបូម',
+    'រថយន្តដឹក', 'គ្រឿងសសៃ', 'សសៃបូម', 'ម៉ាស៊ីនកៀរ', 'សេវាផ្សេងៗ',
   ];
-  String? _selectedServiceType;
+
+  @override
+  void initState() {
+    super.initState();
+    _fadeCtrl = AnimationController(
+        vsync: this, duration: const Duration(milliseconds: 600));
+    _fade = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
+    _fadeCtrl.forward();
+  }
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _emailController.dispose();
-    _phoneController.dispose();
-    _passwordController.dispose();
-    _confirmPasswordController.dispose();
-    _addressController.dispose();
-    _serviceTypeController.dispose();
-    _idCardController.dispose(); // Added to prevent memory leaks
+    _fadeCtrl.dispose();
+    _nameCtrl.dispose();
+    _phoneCtrl.dispose();
+    _addressCtrl.dispose();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
     super.dispose();
   }
 
+  // ── Navigation helpers ────────────────────────────────────────────────────
+
   void _navigateByRole(UserRole role) {
-    Widget destination;
+    Widget dest;
     switch (role) {
       case UserRole.admin:
-        destination = const AdminDashboard();
+        dest = const AdminDashboard();
         break;
       case UserRole.farmer:
-        destination = const FarmerHome();
+        dest = const FarmerHome();
         break;
       case UserRole.serviceProvider:
-        destination = const ProviderHome();
+        dest = const ProviderHome();
         break;
     }
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => destination),
+      PageRouteBuilder(
+        pageBuilder: (_, __, ___) => dest,
+        transitionsBuilder: (_, anim, __, child) =>
+            FadeTransition(opacity: anim, child: child),
+        transitionDuration: const Duration(milliseconds: 400),
+      ),
       (route) => false,
     );
   }
 
-  Future<void> _handleRegister() async {
-    if (!_formKey.currentState!.validate()) return;
+  // ── Step validation ───────────────────────────────────────────────────────
 
-    final auth = context.read<AuthProvider>();
-    final error = await auth.register(
-      fullName: _nameController.text.trim(),
-      email: _emailController.text.trim(),
-      password: _passwordController.text,
-      phoneNumber: _phoneController.text.trim(),
-      role: _selectedRole,
-      serviceType: _selectedRole == UserRole.serviceProvider
-          ? _selectedServiceType
-          : null,
-      idCard: _selectedRole == UserRole.serviceProvider
-          ? _idCardController.text.trim()
-          : null, // Submits ID card info only for Service Provider
-      address: _addressController.text.trim(),
-    );
+  bool _validateStep() {
+    if (_step == 0) {
+      // Personal info
+      if (_nameCtrl.text.trim().isEmpty ||
+          _phoneCtrl.text.trim().isEmpty ||
+          _addressCtrl.text.trim().isEmpty) {
+        _showError('សូមបំពេញព័ត៌មានផ្ទាល់ខ្លួនទាំងអស់');
+        return false;
+      }
+      if (_phoneCtrl.text.trim().length < 9) {
+        _showError('លេខទូរស័ព្ទមិនត្រឹមត្រូវ');
+        return false;
+      }
+      return true;
+    }
 
-    if (error == null && mounted) {
-      _navigateByRole(_selectedRole);
-    } else if (error != null && mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error),
-          backgroundColor: AppTheme.errorRed,
+    if (_step == 1) {
+      // Role + ID card for providers
+      if (_role == UserRole.serviceProvider) {
+        if (_serviceType == null) {
+          _showError('សូមជ្រើសរើសប្រភេទសេវាកម្ម');
+          return false;
+        }
+        if (_idFront == null) {
+          _showError('សូមបន្ថែមរូបថតខាងមុខអត្តសញ្ញាណប័ណ្ណ');
+          return false;
+        }
+        if (_idBack == null) {
+          _showError('សូមបន្ថែមរូបថតខាងក្រោយអត្តសញ្ញាណប័ណ្ណ');
+          return false;
+        }
+      }
+      return true;
+    }
+
+    if (_step == 2) {
+      // Security
+      if (_emailCtrl.text.trim().isEmpty ||
+          !_emailCtrl.text.contains('@')) {
+        _showError('អ៊ីមែលមិនត្រឹមត្រូវ');
+        return false;
+      }
+      if (_passwordCtrl.text.length < 6) {
+        _showError('ពាក្យសម្ងាត់ត្រូវមានយ៉ាងហោចណាស់ ៦ តួ');
+        return false;
+      }
+      if (_passwordCtrl.text != _confirmCtrl.text) {
+        _showError('ពាក្យសម្ងាត់មិនដូចគ្នា');
+        return false;
+      }
+      return true;
+    }
+    return true;
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded,
+                color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(child: Text(msg,
+                style: const TextStyle(fontFamily: 'KhmerOSBattambang'))),
+          ],
         ),
-      );
+        backgroundColor: const Color(0xFFB71C1C),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+
+  void _onNext() {
+    HapticFeedback.lightImpact();
+    if (!_validateStep()) return;
+    if (_step < 2) {
+      setState(() => _step++);
+    } else {
+      _handleRegister();
     }
   }
+
+  void _onBack() {
+    if (_step > 0) {
+      setState(() => _step--);
+    } else {
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _handleRegister() async {
+    final auth = context.read<AuthProvider>();
+    final err = await auth.register(
+      fullName: _nameCtrl.text.trim(),
+      email: _emailCtrl.text.trim(),
+      password: _passwordCtrl.text,
+      phoneNumber: _phoneCtrl.text.trim(),
+      role: _role,
+      address: _addressCtrl.text.trim(),
+      serviceType: _role == UserRole.serviceProvider ? _serviceType : null,
+      idCardFrontFile: _idFront,
+      idCardBackFile: _idBack,
+    );
+    if (!mounted) return;
+    if (err == null) {
+      _navigateByRole(_role);
+    } else {
+      _showError(err);
+    }
+  }
+
+  // ── Image picker ──────────────────────────────────────────────────────────
+
+  Future<void> _pickImage(bool isFront) async {
+    HapticFeedback.selectionClick();
+    final source = await _showImageSourceSheet();
+    if (source == null) return;
+
+    final picked = await _picker.pickImage(
+      source: source,
+      imageQuality: 85,
+      maxWidth: 1024,
+      maxHeight: 1024,
+    );
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      if (isFront) {
+        _idFront = picked;
+        _idFrontBytes = bytes;
+      } else {
+        _idBack = picked;
+        _idBackBytes = bytes;
+      }
+    });
+  }
+
+  Future<ImageSource?> _showImageSourceSheet() async {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _ImageSourceSheet(),
+    );
+  }
+
+  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
+    final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: AppTheme.bgLight,
-      appBar: AppBar(
-        title: const Text('ចុះឈ្មោះថ្មី'),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new),
-          onPressed: () => Navigator.pop(context),
-        ),
-      ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: Stepper(
-            type: StepperType.vertical,
-            currentStep: _currentStep,
-            onStepTapped: (step) => setState(() => _currentStep = step),
-            onStepContinue: () {
-              if (_currentStep < 2) {
-                setState(() => _currentStep++);
-              } else {
-                _handleRegister();
-              }
-            },
-            onStepCancel: () {
-              if (_currentStep > 0) {
-                setState(() => _currentStep--);
-              } else {
-                Navigator.pop(context);
-              }
-            },
-            controlsBuilder: (context, details) {
-              return Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: auth.isLoading ? null : details.onStepContinue,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppTheme.primaryGreen,
-                          minimumSize: const Size(0, 48),
-                        ),
-                        child: auth.isLoading && _currentStep == 2
-                            ? const SizedBox(
-                                width: 20,
-                                height: 20,
-                                child: CircularProgressIndicator(
-                                  color: Colors.white,
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : Text(
-                                _currentStep == 2 ? 'ចុះឈ្មោះ' : 'បន្ទាប់',
-                                style: const TextStyle(
-                                  fontFamily: 'KhmerOSBattambang',
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
+      backgroundColor: const Color(0xFF0A1F0E),
+      body: Stack(
+        children: [
+          BackgroundLayers(size: size),
+
+          SafeArea(
+            child: Column(
+              children: [
+                // ── Top bar ────────────────────────────────────────────────
+                _buildTopBar(),
+
+                // ── Step indicator ─────────────────────────────────────────
+                _buildStepIndicator(),
+
+                // ── Step content ───────────────────────────────────────────
+                Expanded(
+                  child: FadeTransition(
+                    opacity: _fade,
+                    child: SingleChildScrollView(
+                      physics: const BouncingScrollPhysics(),
+                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                      child: Form(
+                        key: _formKey,
+                        child: _buildCurrentStep(),
                       ),
                     ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: details.onStepCancel,
-                        style: OutlinedButton.styleFrom(
-                          minimumSize: const Size(0, 48),
-                          side: const BorderSide(color: AppTheme.primaryGreen),
-                        ),
-                        child: Text(
-                          _currentStep == 0 ? 'ត្រឡប់' : 'ថយក្រោយ',
-                          style: const TextStyle(
-                            fontFamily: 'KhmerOSBattambang',
-                            fontSize: 15,
-                            color: AppTheme.primaryGreen,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              );
-            },
-            steps: [
-              _buildStep1(),
-              _buildStep2(),
-              _buildStep3(),
-            ],
+
+                // ── Bottom action bar ──────────────────────────────────────
+                _buildActionBar(auth),
+              ],
+            ),
           ),
-        ),
+
+          // ── Loading overlay with upload progress ───────────────────────
+          if (auth.isLoading) _UploadOverlay(auth: auth),
+        ],
       ),
     );
   }
 
-  Step _buildStep1() {
-    return Step(
-      title: const Text(
-        'ព័ត៌មានផ្ទាល់ខ្លួន',
-        style: TextStyle(
-          fontFamily: 'KhmerOSBattambang',
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      isActive: _currentStep >= 0,
-      state: _currentStep > 0 ? StepState.complete : StepState.indexed,
-      content: Column(
+  // ── Top bar ───────────────────────────────────────────────────────────────
+
+  Widget _buildTopBar() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(8, 8, 16, 0),
+      child: Row(
         children: [
-          _buildTextField(
-            controller: _nameController,
-            label: 'ឈ្មោះពេញ',
+          IconButton(
+            icon: const Icon(Icons.arrow_back_ios_new,
+                color: Colors.white70, size: 20),
+            onPressed: _onBack,
+          ),
+          Expanded(
+            child: Text(
+              'ចុះឈ្មោះថ្មី',
+              style: TextStyle(
+                fontFamily: 'KhmerOSBattambang',
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: Colors.white.withOpacity(0.9),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Step indicator ────────────────────────────────────────────────────────
+
+  Widget _buildStepIndicator() {
+    const steps = ['ព័ត៌មាន', 'តួនាទី', 'សម្ងាត់'];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 8),
+      child: Row(
+        children: List.generate(steps.length * 2 - 1, (i) {
+          if (i.isOdd) {
+            // connector line
+            final completed = (i ~/ 2) < _step;
+            return Expanded(
+              child: Container(
+                height: 2,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: completed
+                        ? [const Color(0xFF66BB6A), const Color(0xFF43A047)]
+                        : [Colors.white12, Colors.white12],
+                  ),
+                ),
+              ),
+            );
+          }
+          final stepIdx = i ~/ 2;
+          final isActive = stepIdx == _step;
+          final isDone = stepIdx < _step;
+          return AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            width: isActive ? 36 : 32,
+            height: isActive ? 36 : 32,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: isDone
+                  ? const Color(0xFF43A047)
+                  : isActive
+                      ? const Color(0xFF66BB6A)
+                      : Colors.white10,
+              border: Border.all(
+                color: isActive
+                    ? const Color(0xFF66BB6A)
+                    : isDone
+                        ? const Color(0xFF43A047)
+                        : Colors.white24,
+                width: isActive ? 2 : 1,
+              ),
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color:
+                            const Color(0xFF66BB6A).withOpacity(0.4),
+                        blurRadius: 12,
+                      )
+                    ]
+                  : [],
+            ),
+            child: Center(
+              child: isDone
+                  ? const Icon(Icons.check, color: Colors.white, size: 16)
+                  : Text(
+                      '${stepIdx + 1}',
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: isActive ? Colors.white : Colors.white38,
+                      ),
+                    ),
+            ),
+          );
+        }),
+      ),
+    );
+  }
+
+  // ── Current step content ──────────────────────────────────────────────────
+
+  Widget _buildCurrentStep() {
+    switch (_step) {
+      case 0:
+        return _buildStep1();
+      case 1:
+        return _buildStep2();
+      case 2:
+        return _buildStep3();
+      default:
+        return const SizedBox();
+    }
+  }
+
+  // ── STEP 1: Personal info ─────────────────────────────────────────────────
+
+  Widget _buildStep1() {
+    return _StepCard(
+      title: 'ព័ត៌មានផ្ទាល់ខ្លួន',
+      subtitle: 'បំពេញព័ត៌មានដែលត្រូវការ',
+      icon: Icons.person_outline_rounded,
+      child: Column(
+        children: [
+          GlassField(
+            controller: _nameCtrl,
             hint: 'ឈ្មោះ នាមត្រកូល',
             icon: Icons.person_outline,
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'សូមបញ្ចូលឈ្មោះ';
-              return null;
-            },
+            textCapitalization: TextCapitalization.words,
+            validator: (v) =>
+                (v == null || v.isEmpty) ? 'សូមបញ្ចូលឈ្មោះ' : null,
           ),
           const SizedBox(height: 16),
-          _buildTextField(
-            controller: _phoneController,
-            label: 'លេខទូរស័ព្ទ',
+          GlassField(
+            controller: _phoneCtrl,
             hint: '012 345 678',
             icon: Icons.phone_outlined,
             keyboardType: TextInputType.phone,
@@ -241,221 +451,242 @@ class _RegisterScreenState extends State<RegisterScreen> {
             },
           ),
           const SizedBox(height: 16),
-          _buildTextField(
-            controller: _addressController,
-            label: 'អាសយដ្ឋាន',
+          GlassField(
+            controller: _addressCtrl,
             hint: 'ភូមិ ឃុំ ស្រុក ខេត្ត',
             icon: Icons.location_on_outlined,
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'សូមបញ្ចូលអាសយដ្ឋាន';
-              return null;
-            },
+            maxLines: 2,
+            validator: (v) =>
+                (v == null || v.isEmpty) ? 'សូមបញ្ចូលអាសយដ្ឋាន' : null,
           ),
         ],
       ),
     );
   }
 
-  Step _buildStep2() {
-    return Step(
-      title: const Text(
-        'ជ្រើសរើសតួនាទី',
-        style: TextStyle(
-          fontFamily: 'KhmerOSBattambang',
-          fontWeight: FontWeight.w600,
+  // ── STEP 2: Role selection + ID card upload ───────────────────────────────
+
+  Widget _buildStep2() {
+    return Column(
+      children: [
+        _StepCard(
+          title: 'ជ្រើសរើសតួនាទី',
+          subtitle: 'តួនាទីក្នុងប្រព័ន្ធ Dorne',
+          icon: Icons.badge_outlined,
+          child: Column(
+            children: [
+              _buildRoleCard(
+                role: UserRole.farmer,
+                emoji: '👨‍🌾',
+                title: 'កសិករ',
+                description: 'ស្វែងរក និងទំនាក់ទំនងអ្នកផ្តល់សេវា',
+                color: const Color(0xFF2E7D32),
+              ),
+              const SizedBox(height: 10),
+              _buildRoleCard(
+                role: UserRole.serviceProvider,
+                emoji: '🚜',
+                title: 'អ្នកផ្តល់សេវា',
+                description: 'ផ្សព្វផ្សាយសេវា និងទទួលការជួល',
+                color: const Color(0xFFE65100),
+              ),
+              const SizedBox(height: 10),
+              _buildRoleCard(
+                role: UserRole.admin,
+                emoji: '👨‍💼',
+                title: 'អ្នកគ្រប់គ្រង',
+                description: 'គ្រប់គ្រងប្រព័ន្ធ សេវា និងអ្នកប្រើប្រាស់',
+                color: const Color(0xFF1565C0),
+              ),
+            ],
+          ),
         ),
-      ),
-      isActive: _currentStep >= 1,
-      state: _currentStep > 1 ? StepState.complete : StepState.indexed,
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'តួនាទីរបស់អ្នកក្នុងប្រព័ន្ធ',
-            style: TextStyle(
-              fontFamily: 'KhmerOSBattambang',
-              fontSize: 14,
-              color: AppTheme.textSecondary,
+
+        // Service-provider extras
+        if (_role == UserRole.serviceProvider) ...[
+          const SizedBox(height: 16),
+          _StepCard(
+            title: 'ព័ត៌មានសេវាកម្ម',
+            subtitle: 'ជ្រើសរើសប្រភេទ និងផ្ទៀងផ្ទាត់អត្តសញ្ញាណ',
+            icon: Icons.verified_user_outlined,
+            accentColor: const Color(0xFFE65100),
+            child: Column(
+              children: [
+                // Service type dropdown
+                _buildServiceTypeDropdown(),
+                const SizedBox(height: 24),
+
+                // ID card section header
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(6),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFE65100).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: const Icon(Icons.credit_card,
+                          color: Color(0xFFE65100), size: 18),
+                    ),
+                    const SizedBox(width: 10),
+                    const Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'ផ្ទៀងផ្ទាត់អត្តសញ្ញាណប័ណ្ណ',
+                          style: TextStyle(
+                            fontFamily: 'KhmerOSBattambang',
+                            fontSize: 14,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                          ),
+                        ),
+                        Text(
+                          'ត្រូវតែបន្ថែមទាំងពីរខាង',
+                          style: TextStyle(
+                            fontFamily: 'KhmerOSBattambang',
+                            fontSize: 11,
+                            color: Color(0xFFFFB74D),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+
+                // Front + Back upload cards side by side
+                Row(
+                  children: [
+                    Expanded(
+                      child: _IdCardUploadTile(
+                        label: 'រូបថតខាងមុខ',
+                        sublabel: 'Front Side',
+                        emoji: '🪪',
+                        image: _idFront,
+                        imageBytes: _idFrontBytes,
+                        onTap: () => _pickImage(true),
+                        onDelete: () => setState(() {
+                          _idFront = null;
+                          _idFrontBytes = null;
+                        }),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: _IdCardUploadTile(
+                        label: 'រូបថតខាងក្រោយ',
+                        sublabel: 'Back Side',
+                        emoji: '🪪',
+                        image: _idBack,
+                        imageBytes: _idBackBytes,
+                        onTap: () => _pickImage(false),
+                        onDelete: () => setState(() {
+                          _idBack = null;
+                          _idBackBytes = null;
+                        }),
+                        isBack: true,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+
+                // Status indicator
+                _buildIdCardStatus(),
+              ],
             ),
           ),
-          const SizedBox(height: 12),
-          _buildRoleCard(
-            role: UserRole.farmer,
-            emoji: '👨‍🌾',
-            title: 'កសិករ',
-            description: 'ស្វែងរក និងទំនាក់ទំនងអ្នកផ្តល់សេវាកសិកម្ម',
-            color: AppTheme.farmerGreen,
+        ],
+      ],
+    );
+  }
+
+  Widget _buildServiceTypeDropdown() {
+    return DropdownButtonFormField<String>(
+      initialValue: _serviceType,
+      dropdownColor: const Color(0xFF1B3A20),
+      style: const TextStyle(
+          fontFamily: 'KhmerOSBattambang', color: Colors.white, fontSize: 14),
+      decoration: InputDecoration(
+        hintText: 'ជ្រើសរើសប្រភេទសេវា',
+        hintStyle: TextStyle(
+            color: Colors.white.withOpacity(0.3), fontSize: 13,
+            fontFamily: 'KhmerOSBattambang'),
+        prefixIcon:
+            const Icon(Icons.category_outlined, color: Colors.white54, size: 20),
+        filled: true,
+        fillColor: Colors.white.withOpacity(0.08),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(
+              color: Color(0xFFFFB74D), width: 1.8),
+        ),
+      ),
+      icon: const Icon(Icons.keyboard_arrow_down,
+          color: Colors.white54, size: 20),
+      items: _serviceTypes
+          .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+          .toList(),
+      onChanged: (v) => setState(() => _serviceType = v),
+    );
+  }
+
+  Widget _buildIdCardStatus() {
+    final frontOk = _idFront != null;
+    final backOk = _idBack != null;
+    final allOk = frontOk && backOk;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: allOk
+            ? const Color(0xFF2E7D32).withOpacity(0.2)
+            : const Color(0xFFE65100).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: allOk
+              ? const Color(0xFF66BB6A).withOpacity(0.5)
+              : const Color(0xFFFFB74D).withOpacity(0.4),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            allOk ? Icons.verified_outlined : Icons.info_outline,
+            size: 16,
+            color: allOk ? const Color(0xFF66BB6A) : const Color(0xFFFFB74D),
           ),
-          const SizedBox(height: 10),
-          _buildRoleCard(
-            role: UserRole.serviceProvider,
-            emoji: '🚜',
-            title: 'អ្នកផ្តល់សេវា',
-            description: 'ផ្សព្វផ្សាយសេវានិងទទួលការជួល',
-            color: AppTheme.providerOrange,
-          ),
-          const SizedBox(height: 10),
-          _buildRoleCard(
-            role: UserRole.admin,
-            emoji: '👨‍💼',
-            title: 'អ្នកគ្រប់គ្រង',
-            description: 'គ្រប់គ្រងប្រព័ន្ធ សេវា និងអ្នកប្រើប្រាស់',
-            color: AppTheme.adminBlue,
-          ),
-          if (_selectedRole == UserRole.serviceProvider) ...[
-            const SizedBox(height: 24),
-            const Divider(),
-            const SizedBox(height: 12),
-            const Text(
-              'ព័ត៌មានសេវាកម្ម និងអត្តសញ្ញាណប័ណ្ណ',
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              allOk
+                  ? 'រូបថតទាំងពីរខាងត្រូវបានបន្ថែម ✓'
+                  : !frontOk && !backOk
+                      ? 'សូមបន្ថែមរូបថតអត្តសញ្ញាណប័ណ្ណ ទាំងពីរខាង'
+                      : !frontOk
+                          ? 'នៅខ្វះរូបថតខាងមុខ'
+                          : 'នៅខ្វះរូបថតខាងក្រោយ',
               style: TextStyle(
                 fontFamily: 'KhmerOSBattambang',
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AppTheme.providerOrange,
+                fontSize: 12,
+                color: allOk
+                    ? const Color(0xFF66BB6A)
+                    : const Color(0xFFFFB74D),
               ),
             ),
-            const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              value: _selectedServiceType,
-              decoration: const InputDecoration(
-                prefixIcon: Icon(Icons.category_outlined, color: AppTheme.primaryGreen),
-                labelText: 'ប្រភេទសេវា',
-                hintText: 'ជ្រើសរើសប្រភេទសេវា',
-              ),
-              items: _serviceTypes.map((type) {
-                return DropdownMenuItem(
-                  value: type,
-                  child: Text(
-                    type,
-                    style: const TextStyle(fontFamily: 'KhmerOSBattambang'),
-                  ),
-                );
-              }).toList(),
-              onChanged: (v) => setState(() => _selectedServiceType = v),
-              style: const TextStyle(
-                fontFamily: 'KhmerOSBattambang',
-                color: AppTheme.textPrimary,
-                fontSize: 14,
-              ),
-              validator: (v) {
-                if (_selectedRole == UserRole.serviceProvider && v == null) {
-                  return 'សូមជ្រើសរើសប្រភេទសេវា';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            _buildTextField(
-              controller: _idCardController,
-              label: 'លេខអត្តសញ្ញាណប័ណ្ណ (ID Card)',
-              hint: 'បញ្ចូលលេខអត្តសញ្ញាណប័ណ្ណសញ្ជាតិខ្មែរ',
-              icon: Icons.badge_outlined,
-              keyboardType: TextInputType.number,
-              validator: (v) {
-                if (_selectedRole == UserRole.serviceProvider) {
-                  if (v == null || v.isEmpty) {
-                    return 'សូមបញ្ចូលលេខអត្តសញ្ញាណប័ណ្ណរបស់អ្នក';
-                  }
-                  if (v.length < 9) {
-                    return 'លេខអត្តសញ្ញាណប័ណ្ណមិនត្រឹមត្រូវទេ';
-                  }
-                }
-                return null;
-              },
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Step _buildStep3() {
-    return Step(
-      title: const Text(
-        'ព័ត៌មានសម្ងាត់',
-        style: TextStyle(
-          fontFamily: 'KhmerOSBattambang',
-          fontWeight: FontWeight.w600,
-        ),
-      ),
-      isActive: _currentStep >= 2,
-      state: StepState.indexed,
-      content: Column(
-        children: [
-          _buildTextField(
-            controller: _emailController,
-            label: 'អ៊ីមែល',
-            hint: 'example@gmail.com',
-            icon: Icons.email_outlined,
-            keyboardType: TextInputType.emailAddress,
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'សូមបញ្ចូលអ៊ីមែល';
-              if (!v.contains('@')) return 'អ៊ីមែលមិនត្រឹមត្រូវ';
-              return null;
-            },
           ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _passwordController,
-            obscureText: _obscurePassword,
-            decoration: InputDecoration(
-              labelText: 'ពាក្យសម្ងាត់',
-              hintText: '••••••••',
-              prefixIcon: const Icon(
-                Icons.lock_outline,
-                color: AppTheme.primaryGreen,
-              ),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscurePassword
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: AppTheme.textSecondary,
-                ),
-                onPressed: () =>
-                    setState(() => _obscurePassword = !_obscurePassword),
-              ),
-            ),
-            style: const TextStyle(fontFamily: 'KhmerOSBattambang'),
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'សូមបញ្ចូលពាក្យសម្ងាត់';
-              if (v.length < 6) return 'យ៉ាងហោចណាស់ ៦ តួ';
-              return null;
-            },
-          ),
-          const SizedBox(height: 16),
-          TextFormField(
-            controller: _confirmPasswordController,
-            obscureText: _obscureConfirm,
-            decoration: InputDecoration(
-              labelText: 'បញ្ជាក់ពាក្យសម្ងាត់',
-              hintText: '••••••••',
-              prefixIcon: const Icon(
-                Icons.lock_outline,
-                color: AppTheme.primaryGreen,
-              ),
-              suffixIcon: IconButton(
-                icon: Icon(
-                  _obscureConfirm
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: AppTheme.textSecondary,
-                ),
-                onPressed: () =>
-                    setState(() => _obscureConfirm = !_obscureConfirm),
-              ),
-            ),
-            style: const TextStyle(fontFamily: 'KhmerOSBattambang'),
-            validator: (v) {
-              if (v == null || v.isEmpty) return 'សូមបញ្ជាក់ពាក្យសម្ងាត់';
-              if (v != _passwordController.text) {
-                return 'ពាក្យសម្ងាត់មិនដូចគ្នា';
-              }
-              return null;
-            },
-          ),
-          const SizedBox(height: 16),
         ],
       ),
     );
@@ -468,24 +699,29 @@ class _RegisterScreenState extends State<RegisterScreen> {
     required String description,
     required Color color,
   }) {
-    final isSelected = _selectedRole == role;
+    final selected = _role == role;
     return GestureDetector(
-      onTap: () => setState(() => _selectedRole = role),
+      onTap: () {
+        HapticFeedback.selectionClick();
+        setState(() => _role = role);
+      },
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: isSelected ? color.withOpacity(0.1) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
+          color: selected
+              ? color.withOpacity(0.15)
+              : Colors.white.withOpacity(0.04),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(
-            color: isSelected ? color : const Color(0xFFE0E0E0),
-            width: isSelected ? 2 : 1,
+            color: selected ? color : Colors.white.withOpacity(0.1),
+            width: selected ? 2 : 1,
           ),
-          boxShadow: isSelected
+          boxShadow: selected
               ? [
                   BoxShadow(
-                    color: color.withOpacity(0.15),
-                    blurRadius: 8,
+                    color: color.withOpacity(0.2),
+                    blurRadius: 12,
                     offset: const Offset(0, 4),
                   )
                 ]
@@ -503,51 +739,756 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     title,
                     style: TextStyle(
                       fontFamily: 'KhmerOSBattambang',
-                      fontSize: 15,
+                      fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color: isSelected ? color : AppTheme.textPrimary,
+                      color:
+                          selected ? color : Colors.white.withOpacity(0.85),
                     ),
                   ),
                   const SizedBox(height: 3),
                   Text(
                     description,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'KhmerOSBattambang',
-                      fontSize: 12,
-                      color: AppTheme.textSecondary,
+                      fontSize: 11,
+                      color: Colors.white.withOpacity(0.45),
                     ),
                   ),
                 ],
               ),
             ),
-            if (isSelected)
-              Icon(Icons.check_circle, color: color, size: 22)
-            else
-              Icon(Icons.circle_outlined, color: Colors.grey.shade300, size: 22),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: selected
+                  ? Icon(Icons.check_circle, color: color, size: 22,
+                      key: const ValueKey('checked'))
+                  : Icon(Icons.circle_outlined,
+                      color: Colors.white24, size: 22,
+                      key: const ValueKey('unchecked')),
+            ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String label,
-    required String hint,
-    required IconData icon,
-    TextInputType keyboardType = TextInputType.text,
-    String? Function(String?)? validator,
-  }) {
-    return TextFormField(
-      controller: controller,
-      keyboardType: keyboardType,
-      style: const TextStyle(fontFamily: 'KhmerOSBattambang'),
-      decoration: InputDecoration(
-        labelText: label,
-        hintText: hint,
-        prefixIcon: Icon(icon, color: AppTheme.primaryGreen),
+  // ── STEP 3: Security ──────────────────────────────────────────────────────
+
+  Widget _buildStep3() {
+    return _StepCard(
+      title: 'ព័ត៌មានសម្ងាត់',
+      subtitle: 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងហោចណាស់ ៦ តួ',
+      icon: Icons.lock_outline_rounded,
+      child: Column(
+        children: [
+          GlassField(
+            controller: _emailCtrl,
+            hint: 'example@gmail.com',
+            icon: Icons.email_outlined,
+            keyboardType: TextInputType.emailAddress,
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'សូមបញ្ចូលអ៊ីមែល';
+              if (!v.contains('@')) return 'អ៊ីមែលមិនត្រឹមត្រូវ';
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          GlassField(
+            controller: _passwordCtrl,
+            hint: '••••••••',
+            icon: Icons.lock_outline,
+            obscure: _obscurePass,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscurePass
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                color: Colors.white54,
+                size: 20,
+              ),
+              onPressed: () =>
+                  setState(() => _obscurePass = !_obscurePass),
+            ),
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'សូមបញ្ចូលពាក្យសម្ងាត់';
+              if (v.length < 6) return 'យ៉ាងហោចណាស់ ៦ តួ';
+              return null;
+            },
+          ),
+          const SizedBox(height: 16),
+          GlassField(
+            controller: _confirmCtrl,
+            hint: '••••••••',
+            icon: Icons.lock_outline,
+            obscure: _obscureConfirm,
+            suffixIcon: IconButton(
+              icon: Icon(
+                _obscureConfirm
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                color: Colors.white54,
+                size: 20,
+              ),
+              onPressed: () =>
+                  setState(() => _obscureConfirm = !_obscureConfirm),
+            ),
+            validator: (v) {
+              if (v == null || v.isEmpty) return 'សូមបញ្ជាក់ពាក្យសម្ងាត់';
+              if (v != _passwordCtrl.text) return 'ពាក្យសម្ងាត់មិនដូចគ្នា';
+              return null;
+            },
+          ),
+          const SizedBox(height: 20),
+
+          // Summary
+          _buildSummaryCard(),
+        ],
       ),
-      validator: validator,
+    );
+  }
+
+  Widget _buildSummaryCard() {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'សង្ខេបការចុះឈ្មោះ',
+            style: TextStyle(
+              fontFamily: 'KhmerOSBattambang',
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: Colors.white.withOpacity(0.5),
+              letterSpacing: 0.5,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _summaryRow('👤 ឈ្មោះ', _nameCtrl.text.trim()),
+          _summaryRow('📱 ទូរស័ព្ទ', _phoneCtrl.text.trim()),
+          _summaryRow(
+            '🎭 តួនាទី',
+            _role == UserRole.farmer
+                ? 'កសិករ'
+                : _role == UserRole.serviceProvider
+                    ? 'អ្នកផ្តល់សេវា'
+                    : 'អ្នកគ្រប់គ្រង',
+          ),
+          if (_role == UserRole.serviceProvider) ...[
+            _summaryRow('🔧 សេវាកម្ម', _serviceType ?? '-'),
+            _summaryRow('🪪 អត្តសញ្ញាណប័ណ្ណ',
+                (_idFront != null && _idBack != null) ? 'បានបន្ថែម ✓' : 'មិនទាន់'),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _summaryRow(String label, String value) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 140,
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontFamily: 'KhmerOSBattambang',
+                  fontSize: 12,
+                  color: Colors.white.withOpacity(0.45),
+                ),
+              ),
+            ),
+            Expanded(
+              child: Text(
+                value.isEmpty ? '—' : value,
+                style: const TextStyle(
+                  fontFamily: 'KhmerOSBattambang',
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white70,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+
+  // ── Bottom action bar ─────────────────────────────────────────────────────
+
+  Widget _buildActionBar(AuthProvider auth) {
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + bottomPadding),
+      decoration: BoxDecoration(
+        color: const Color(0xFF0A1F0E),
+        border: Border(
+          top: BorderSide(color: Colors.white.withOpacity(0.08)),
+        ),
+      ),
+      child: Row(
+        children: [
+          if (_step > 0) ...[
+            SizedBox(
+              height: 52,
+              child: OutlinedButton(
+                onPressed: _onBack,
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: Colors.white70,
+                  side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14)),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                ),
+                child: const Icon(Icons.arrow_back_ios_new, size: 16),
+              ),
+            ),
+            const SizedBox(width: 12),
+          ],
+          Expanded(
+            child: GreenButton(
+              label: _step < 2 ? 'បន្ទាប់ →' : 'ចុះឈ្មោះ',
+              loading: auth.isLoading,
+              onPressed: _onNext,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ID CARD UPLOAD TILE
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _IdCardUploadTile extends StatelessWidget {
+  final String label;
+  final String sublabel;
+  final String emoji;
+  final XFile? image;
+  final Uint8List? imageBytes;
+  final VoidCallback onTap;
+  final VoidCallback onDelete;
+  final bool isBack;
+
+  const _IdCardUploadTile({
+    required this.label,
+    required this.sublabel,
+    required this.emoji,
+    required this.image,
+    this.imageBytes,
+    required this.onTap,
+    required this.onDelete,
+    this.isBack = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = image != null;
+
+    return GestureDetector(
+      onTap: hasImage ? null : onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 300),
+        height: 150,
+        decoration: BoxDecoration(
+          color: hasImage
+              ? Colors.transparent
+              : Colors.white.withOpacity(0.05),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: hasImage
+                ? const Color(0xFF66BB6A).withOpacity(0.6)
+                : Colors.white.withOpacity(0.15),
+            width: hasImage ? 1.8 : 1,
+            // Dashed effect via BoxBorder is not native; we simulate with
+            // a solid border + dashed look inside the empty state via CustomPaint.
+          ),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(15),
+          child: hasImage
+              ? _buildPreview()
+              : _buildPlaceholder(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPreview() {
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Image preview — uses Image.memory which works on both Web and Mobile
+        Image.memory(
+          imageBytes!,
+          fit: BoxFit.cover,
+          gaplessPlayback: true,
+        ),
+        // Dark scrim at bottom
+        Positioned(
+          bottom: 0,
+          left: 0,
+          right: 0,
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(8, 20, 8, 6),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(
+                colors: [Colors.transparent, Colors.black87],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: 'KhmerOSBattambang',
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                // Retake / delete button
+                GestureDetector(
+                  onTap: onDelete,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.85),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(Icons.close,
+                        color: Colors.white, size: 12),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // Success badge top-right
+        const Positioned(
+          top: 6,
+          right: 6,
+          child: CircleAvatar(
+            radius: 10,
+            backgroundColor: Color(0xFF2E7D32),
+            child: Icon(Icons.check, color: Colors.white, size: 12),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return CustomPaint(
+      painter: _DashedBorderPainter(),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE65100).withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              isBack
+                  ? Icons.flip_to_back_outlined
+                  : Icons.flip_to_front_outlined,
+              color: const Color(0xFFFFB74D),
+              size: 24,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontFamily: 'KhmerOSBattambang',
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              color: Colors.white70,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            sublabel,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 10,
+              color: Colors.white.withOpacity(0.35),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Container(
+            padding:
+                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: const Color(0xFFE65100).withOpacity(0.15),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                  color: const Color(0xFFFFB74D).withOpacity(0.4)),
+            ),
+            child: const Text(
+              '+ បន្ថែម',
+              style: TextStyle(
+                fontFamily: 'KhmerOSBattambang',
+                fontSize: 10,
+                color: Color(0xFFFFB74D),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DashedBorderPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.18)
+      ..strokeWidth = 1.5
+      ..style = PaintingStyle.stroke;
+
+    const dash = 6.0;
+    const gap = 4.0;
+    final radius = Radius.circular(15);
+    final rrect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, 0, size.width, size.height), radius);
+    final path = Path()..addRRect(rrect);
+
+    final metric = path.computeMetrics().first;
+    double dist = 0;
+    while (dist < metric.length) {
+      canvas.drawPath(metric.extractPath(dist, dist + dash), paint);
+      dist += dash + gap;
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter old) => false;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// IMAGE SOURCE BOTTOM SHEET
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _ImageSourceSheet extends StatelessWidget {
+  const _ImageSourceSheet();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1B3A20),
+        borderRadius: BorderRadius.circular(20),
+        border:
+            Border.all(color: Colors.white.withOpacity(0.1)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const SizedBox(height: 16),
+          Container(
+            width: 40,
+            height: 4,
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'ជ្រើសរើសប្រភព',
+            style: TextStyle(
+              fontFamily: 'KhmerOSBattambang',
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withOpacity(0.9),
+            ),
+          ),
+          const SizedBox(height: 20),
+          _SourceTile(
+            icon: Icons.camera_alt_outlined,
+            label: 'ថតរូបភ្លាម',
+            sublabel: 'Camera',
+            color: const Color(0xFF29B6F6),
+            onTap: () => Navigator.pop(context, ImageSource.camera),
+          ),
+          const Divider(
+              height: 1, indent: 20, endIndent: 20, color: Colors.white10),
+          _SourceTile(
+            icon: Icons.photo_library_outlined,
+            label: 'ជ្រើសពីឯកសាររូបថត',
+            sublabel: 'Gallery',
+            color: const Color(0xFF66BB6A),
+            onTap: () => Navigator.pop(context, ImageSource.gallery),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: () => Navigator.pop(context, null),
+            child: Text(
+              'បោះបង់',
+              style: TextStyle(
+                fontFamily: 'KhmerOSBattambang',
+                color: Colors.white.withOpacity(0.45),
+                fontSize: 14,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ),
+    );
+  }
+}
+
+class _SourceTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String sublabel;
+  final Color color;
+  final VoidCallback onTap;
+
+  const _SourceTile({
+    required this.icon,
+    required this.label,
+    required this.sublabel,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        child: Row(
+          children: [
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(width: 14),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: const TextStyle(
+                    fontFamily: 'KhmerOSBattambang',
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+                Text(
+                  sublabel,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.white.withOpacity(0.4),
+                  ),
+                ),
+              ],
+            ),
+            const Spacer(),
+            Icon(Icons.arrow_forward_ios,
+                size: 14, color: Colors.white.withOpacity(0.25)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// UPLOAD PROGRESS OVERLAY  (replaces simple _LoadingOverlay during register)
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _UploadOverlay extends StatelessWidget {
+  final AuthProvider auth;
+  const _UploadOverlay({required this.auth});
+
+  @override
+  Widget build(BuildContext context) {
+    return BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 6, sigmaY: 6),
+      child: Container(
+        color: Colors.black.withOpacity(0.65),
+        child: Center(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 40),
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: const Color(0xFF1B3A20),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: Colors.white.withOpacity(0.1)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Animated logo
+                Container(
+                  width: 64,
+                  height: 64,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF4CAF50), Color(0xFF1B5E20)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    borderRadius: BorderRadius.circular(18),
+                  ),
+                  child: const Icon(Icons.upload_rounded,
+                      color: Colors.white, size: 32),
+                ),
+                const SizedBox(height: 20),
+
+                Text(
+                  auth.uploadStatus.isNotEmpty
+                      ? auth.uploadStatus
+                      : 'កំពុងដំណើរការ...',
+                  style: const TextStyle(
+                    fontFamily: 'KhmerOSBattambang',
+                    color: Colors.white,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Progress bar
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: auth.uploadProgress > 0
+                        ? auth.uploadProgress
+                        : null,
+                    backgroundColor: Colors.white12,
+                    valueColor: const AlwaysStoppedAnimation(
+                        Color(0xFF66BB6A)),
+                    minHeight: 6,
+                  ),
+                ),
+                const SizedBox(height: 10),
+
+                if (auth.uploadProgress > 0)
+                  Text(
+                    '${(auth.uploadProgress * 100).toStringAsFixed(0)}%',
+                    style: TextStyle(
+                      fontFamily: 'KhmerOSBattambang',
+                      color: Colors.white.withOpacity(0.55),
+                      fontSize: 12,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP CARD — glassmorphic container for each step's content
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _StepCard extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Widget child;
+  final Color accentColor;
+
+  const _StepCard({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.child,
+    this.accentColor = const Color(0xFF66BB6A),
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(24),
+      child: BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.06),
+            borderRadius: BorderRadius.circular(24),
+            border:
+                Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          padding: const EdgeInsets.all(22),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Card header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: accentColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(icon, color: accentColor, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontFamily: 'KhmerOSBattambang',
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: Colors.white,
+                        ),
+                      ),
+                      Text(
+                        subtitle,
+                        style: TextStyle(
+                          fontFamily: 'KhmerOSBattambang',
+                          fontSize: 11,
+                          color: Colors.white.withOpacity(0.45),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Divider(color: Colors.white10, height: 1),
+              const SizedBox(height: 20),
+              child,
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
