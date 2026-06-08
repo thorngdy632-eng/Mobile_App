@@ -1,7 +1,6 @@
-// lib/screens/auth/auth_wrapper.dart
 import 'package:flutter/material.dart';
-import 'package:provider/provider.dart';
-import '../../providers/auth_provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/user_model.dart';
 import '../admin/admin_dashboard.dart';
 import '../farmer/farmer_home.dart';
@@ -13,20 +12,66 @@ class AuthWrapper extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        debugPrint('AuthWrapper — connectionState: ${snapshot.connectionState}');
+        debugPrint('AuthWrapper — hasData: ${snapshot.hasData}');
+        debugPrint('AuthWrapper — currentUser: ${snapshot.data?.uid}');
 
-    // Still waiting for Firebase Auth to resolve the persisted session
-    if (auth.isInitializing) {
-      return const _BootSplash();
-    }
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const _BootSplash();
+        }
 
-    // Session found → route by role
-    if (auth.currentUser != null) {
-      return _routeByRole(auth.currentUser!.role);
-    }
+        if (snapshot.data != null) {
+          return _ProfileLoader(uid: snapshot.data!.uid);
+        }
 
-    // No session → login
-    return const LoginScreen();
+        return const LoginScreen();
+      },
+    );
+  }
+}
+
+// ── Fetches the Firestore user profile, then routes by role ─────────────────
+
+class _ProfileLoader extends StatelessWidget {
+  final String uid;
+  const _ProfileLoader({required this.uid});
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
+      builder: (context, snap) {
+        debugPrint('ProfileLoader — connectionState: ${snap.connectionState}');
+        debugPrint('ProfileLoader — hasData: ${snap.hasData}');
+        debugPrint('ProfileLoader — docExists: ${snap.data?.exists}');
+
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const _BootSplash();
+        }
+
+        if (snap.hasError) {
+          debugPrint('ProfileLoader — error: ${snap.error}');
+          return const LoginScreen();
+        }
+
+        if (!snap.hasData || !snap.data!.exists) {
+          debugPrint('ProfileLoader — no user doc for uid: $uid');
+          return const LoginScreen();
+        }
+
+        final data = snap.data!.data() as Map<String, dynamic>;
+        final role = UserRole.values.firstWhere(
+          (r) => r.name == data['role'],
+          orElse: () => UserRole.farmer,
+        );
+
+        debugPrint('ProfileLoader — role: ${role.name}');
+        return _routeByRole(role);
+      },
+    );
   }
 
   Widget _routeByRole(UserRole role) {
@@ -48,21 +93,42 @@ class _BootSplash extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const Scaffold(
-      backgroundColor: Color(0xFF0A1F0E),
+    return Scaffold(
+      backgroundColor: const Color(0xFF0A1F0E),
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // App icon
-            FlutterLogo(size: 64),
-            SizedBox(height: 24),
-            CircularProgressIndicator(
+            Container(
+              width: 88,
+              height: 88,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(26),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF4CAF50).withValues(alpha: 0.35),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(26),
+                child: Image.asset(
+                  'assets/images/app_icon.png',
+                  width: 88,
+                  height: 88,
+                  fit: BoxFit.cover,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const CircularProgressIndicator(
               color: Color(0xFF66BB6A),
               strokeWidth: 2.5,
             ),
-            SizedBox(height: 20),
-            Text(
+            const SizedBox(height: 20),
+            const Text(
               'កំពុងផ្ទុក...',
               style: TextStyle(
                 fontFamily: 'KhmerOSBattambang',

@@ -2,7 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../auth/login_screen.dart';
+
 import '../../theme/app_colors.dart';
 
 class AppDrawer extends StatelessWidget {
@@ -165,13 +165,7 @@ class AppDrawer extends StatelessWidget {
                             ),
                             onPressed: () async {
                               Navigator.pop(dialogContext);
-                              // Use AuthProvider.logout() so state is cleared properly
                               await auth.logout();
-                              mainNavigator.pushAndRemoveUntil(
-                                MaterialPageRoute(
-                                    builder: (context) => const LoginScreen()),
-                                (route) => false,
-                              );
                             },
                             child: const Text('បាទ ចេញ'),
                           ),

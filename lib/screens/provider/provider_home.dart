@@ -1,11 +1,13 @@
 // lib/screens/provider/provider_home.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../models/chat_message.dart';
 import '../../providers/chat_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import '../auth/login_screen.dart';
+
 import '../chat/chat_screen.dart';
 import '../profile/edit_profile_screen.dart';
 import 'home_screen.dart';
@@ -111,16 +113,16 @@ class _ProviderHomeState extends State<ProviderHome> {
         backgroundColor: AppTheme.providerOrange,
         automaticallyImplyLeading: false,
       ),
-      body: StreamBuilder<List>(
-        stream: context.read<ChatProvider>().threadsStream(myUid),
+      body: StreamBuilder<List<ChatRoom>>(
+        stream: context.read<ChatProvider>().getChatRooms(myUid),
         builder: (context, snap) {
           if (snap.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final threads = snap.data ?? [];
+          final rooms = snap.data ?? [];
 
-          if (threads.isEmpty) {
+          if (rooms.isEmpty) {
             return Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -159,25 +161,23 @@ class _ProviderHomeState extends State<ProviderHome> {
             );
           }
 
+          final chatProv = context.read<ChatProvider>();
           return ListView.separated(
             padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: threads.length,
+            itemCount: rooms.length,
             separatorBuilder: (_, __) => const Divider(
                 height: 1, indent: 72, color: Color(0xFFF0F0F0)),
             itemBuilder: (ctx, i) {
-              final thread = threads[i];
-              final unread = thread.unreadFor(myUid);
-              final otherUid = thread.otherUid(myUid);
-              final otherName = thread.otherName(myUid);
-              final otherRole = thread.otherRole(myUid);
-
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 6),
-                leading: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    CircleAvatar(
+              final room = rooms[i];
+              final otherUid = room.otherUid(myUid);
+              return FutureBuilder<String>(
+                future: chatProv.getUserName(otherUid),
+                builder: (ctx2, nameSnap) {
+                  final otherName = nameSnap.data ?? '...';
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16, vertical: 6),
+                    leading: CircleAvatar(
                       radius: 26,
                       backgroundColor:
                           AppTheme.adminBlue.withOpacity(0.15),
@@ -191,90 +191,42 @@ class _ProviderHomeState extends State<ProviderHome> {
                             color: AppTheme.adminBlue),
                       ),
                     ),
-                    if (unread > 0)
-                      Positioned(
-                        top: -2,
-                        right: -2,
-                        child: Container(
-                          width: 18,
-                          height: 18,
-                          decoration: const BoxDecoration(
-                            color: AppTheme.errorRed,
-                            shape: BoxShape.circle,
-                          ),
-                          child: Center(
-                            child: Text(
-                              unread > 9 ? '9+' : '$unread',
-                              style: const TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 10,
-                                  fontWeight: FontWeight.bold),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                title: Text(
-                  otherName,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: unread > 0
-                        ? FontWeight.w700
-                        : FontWeight.w600,
-                    color: AppTheme.textPrimary,
-                  ),
-                ),
-                subtitle: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 2),
-                    Text(
-                      _roleLabel(otherRole),
+                    title: Text(
+                      otherName,
                       style: const TextStyle(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.adminBlue),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.textPrimary,
+                      ),
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      thread.lastMessage,
+                    subtitle: Text(
+                      room.lastMessage,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 12,
-                        color: unread > 0
-                            ? AppTheme.textPrimary
-                            : AppColors.textMuted,
-                        fontWeight: unread > 0
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+                        color: AppColors.textMuted,
                       ),
                     ),
-                  ],
-                ),
-                trailing: Text(
-                  _formatDate(thread.lastMessageAt),
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: unread > 0
-                        ? AppTheme.providerOrange
-                        : AppColors.textMuted,
-                    fontWeight: unread > 0
-                        ? FontWeight.w700
-                        : FontWeight.normal,
-                  ),
-                ),
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => ChatScreen(
-                      otherUid: otherUid,
-                      otherName: otherName,
-                      otherRole: otherRole,
+                    trailing: Text(
+                      _formatDate(room.lastMessageTime),
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: AppColors.textMuted,
+                      ),
                     ),
-                  ),
-                ),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => ChatScreen(
+                          chatRoomId: room.id,
+                          peerId: otherUid,
+                          peerName: otherName,
+                        ),
+                      ),
+                    ),
+                  );
+                },
               );
             },
           );
@@ -298,20 +250,27 @@ class _ProviderHomeState extends State<ProviderHome> {
         child: Column(
           children: [
             const SizedBox(height: 12),
-            CircleAvatar(
-              radius: 50,
-              backgroundColor: AppTheme.providerOrange.withOpacity(0.15),
-              child: Text(
-                user?.fullName?.isNotEmpty == true
-                    ? user!.fullName[0].toUpperCase()
-                    : '🚜',
-                style: TextStyle(
-                    fontSize:
-                        user?.fullName?.isNotEmpty == true ? 36 : 48,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.providerOrange),
-              ),
-            ),
+        CircleAvatar(
+          radius: 50,
+          backgroundColor: AppTheme.providerOrange.withOpacity(0.15),
+          backgroundImage: user?.profileImageUrl != null &&
+                  user!.profileImageUrl!.isNotEmpty
+              ? MemoryImage(base64Decode(user.profileImageUrl!))
+              : null,
+          child: user?.profileImageUrl == null ||
+                  user!.profileImageUrl!.isEmpty
+              ? Text(
+                  user?.fullName?.isNotEmpty == true
+                      ? user!.fullName[0].toUpperCase()
+                      : '🚜',
+                  style: TextStyle(
+                      fontSize:
+                          user?.fullName?.isNotEmpty == true ? 36 : 48,
+                      fontWeight: FontWeight.bold,
+                      color: AppTheme.providerOrange),
+                )
+              : null,
+        ),
             const SizedBox(height: 12),
             Text(
               user?.fullName ?? '',
@@ -330,8 +289,8 @@ class _ProviderHomeState extends State<ProviderHome> {
                 border: Border.all(
                     color: AppTheme.providerOrange.withOpacity(0.3)),
               ),
-              child: const Text(
-                'អ្នកផ្តល់សេវា',
+              child: Text(
+                user?.roleDisplayName ?? 'អ្នកផ្តល់សេវា',
                 style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
@@ -397,13 +356,6 @@ class _ProviderHomeState extends State<ProviderHome> {
                 ),
                 onPressed: () async {
                   await auth.logout();
-                  if (context.mounted) {
-                    Navigator.of(context).pushAndRemoveUntil(
-                      MaterialPageRoute(
-                          builder: (_) => const LoginScreen()),
-                      (route) => false,
-                    );
-                  }
                 },
               ),
             ),
@@ -456,19 +408,6 @@ class _ProviderHomeState extends State<ProviderHome> {
         ],
       ),
     );
-  }
-
-  String _roleLabel(String role) {
-    switch (role) {
-      case 'admin':
-        return 'អ្នកគ្រប់គ្រង';
-      case 'farmer':
-        return 'កសិករ';
-      case 'serviceProvider':
-        return 'អ្នកផ្តល់សេវា';
-      default:
-        return role;
-    }
   }
 
   String _formatDate(DateTime dt) {

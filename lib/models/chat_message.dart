@@ -1,115 +1,78 @@
-// lib/models/chat_message.dart
 import 'package:cloud_firestore/cloud_firestore.dart';
 
-/// A single message inside a chat thread.
+/// A single message inside a chat room.
 class ChatMessage {
   final String id;
   final String senderId;
-  final String senderName;
-  final String text;
-  final DateTime createdAt;
-  final bool isRead;
+  final String receiverId;
+  final String message;
+  final DateTime timestamp;
 
   const ChatMessage({
     required this.id,
     required this.senderId,
-    required this.senderName,
-    required this.text,
-    required this.createdAt,
-    this.isRead = false,
+    required this.receiverId,
+    required this.message,
+    required this.timestamp,
   });
 
   factory ChatMessage.fromMap(Map<String, dynamic> map, String id) {
     return ChatMessage(
       id: id,
       senderId: map['senderId'] ?? '',
-      senderName: map['senderName'] ?? '',
-      text: map['text'] ?? '',
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      isRead: map['isRead'] ?? false,
+      receiverId: map['receiverId'] ?? '',
+      message: map['message'] ?? '',
+      timestamp: (map['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
       'senderId': senderId,
-      'senderName': senderName,
-      'text': text,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'isRead': isRead,
+      'receiverId': receiverId,
+      'message': message,
+      'timestamp': Timestamp.fromDate(timestamp),
     };
   }
 }
 
-/// A chat thread between two participants.
-class ChatThread {
+/// A chat room between two members.
+class ChatRoom {
   final String id;
-  final List<String> participants;
-  final Map<String, String> participantNames;
-  final Map<String, String> participantRoles;
+  final List<String> members;
   final String lastMessage;
-  final DateTime lastMessageAt;
-  final Map<String, int> unreadCount;
-  final DateTime createdAt;
+  final DateTime lastMessageTime;
 
-  const ChatThread({
+  const ChatRoom({
     required this.id,
-    required this.participants,
-    required this.participantNames,
-    required this.participantRoles,
+    required this.members,
     required this.lastMessage,
-    required this.lastMessageAt,
-    required this.unreadCount,
-    required this.createdAt,
+    required this.lastMessageTime,
   });
 
-  factory ChatThread.fromMap(Map<String, dynamic> map, String id) {
-    return ChatThread(
+  factory ChatRoom.fromMap(Map<String, dynamic> map, String id) {
+    return ChatRoom(
       id: id,
-      participants: List<String>.from(map['participants'] ?? []),
-      participantNames:
-          Map<String, String>.from(map['participantNames'] ?? {}),
-      participantRoles:
-          Map<String, String>.from(map['participantRoles'] ?? {}),
+      members: List<String>.from(map['members'] ?? []),
       lastMessage: map['lastMessage'] ?? '',
-      lastMessageAt:
-          (map['lastMessageAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      unreadCount: Map<String, int>.from(
-        (map['unreadCount'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toInt()),
-            ) ??
-            {},
-      ),
-      createdAt:
-          (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      lastMessageTime:
+          (map['lastMessageTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
-      'participants': participants,
-      'participantNames': participantNames,
-      'participantRoles': participantRoles,
+      'members': members,
       'lastMessage': lastMessage,
-      'lastMessageAt': Timestamp.fromDate(lastMessageAt),
-      'unreadCount': unreadCount,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'lastMessageTime': Timestamp.fromDate(lastMessageTime),
     };
   }
 
-  /// The other participant's UID.
+  /// Return the other member's UID.
   String otherUid(String myUid) =>
-      participants.firstWhere((uid) => uid != myUid, orElse: () => '');
+      members.firstWhere((uid) => uid != myUid, orElse: () => '');
 
-  String otherName(String myUid) =>
-      participantNames[otherUid(myUid)] ?? 'អ្នកប្រើប្រាស់';
-
-  String otherRole(String myUid) =>
-      participantRoles[otherUid(myUid)] ?? '';
-
-  int unreadFor(String uid) => unreadCount[uid] ?? 0;
-
-  /// Canonical chat ID: sort the two UIDs alphabetically.
+  /// Generate a deterministic chat room ID from two UIDs.
   static String buildId(String uid1, String uid2) {
     final sorted = [uid1, uid2]..sort();
     return '${sorted[0]}_${sorted[1]}';

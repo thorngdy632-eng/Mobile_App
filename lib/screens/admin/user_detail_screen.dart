@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
+import '../../models/chat_message.dart';
 import '../../models/user_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
@@ -120,9 +121,9 @@ class UserDetailScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => ChatScreen(
-                              otherUid: user.uid,
-                              otherName: user.fullName,
-                              otherRole: user.role.name,
+                              chatRoomId: ChatRoom.buildId(me.uid, user.uid),
+                              peerId: user.uid,
+                              peerName: user.fullName,
                             ),
                           ),
                         ),

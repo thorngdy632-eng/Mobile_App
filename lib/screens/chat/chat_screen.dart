@@ -1,4 +1,3 @@
-// lib/screens/chat/chat_screen.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -9,15 +8,15 @@ import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 
 class ChatScreen extends StatefulWidget {
-  final String otherUid;
-  final String otherName;
-  final String otherRole;
+  final String chatRoomId;
+  final String peerId;
+  final String peerName;
 
   const ChatScreen({
     super.key,
-    required this.otherUid,
-    required this.otherName,
-    required this.otherRole,
+    required this.chatRoomId,
+    required this.peerId,
+    required this.peerName,
   });
 
   @override
@@ -30,25 +29,10 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _sending = false;
 
   @override
-  void initState() {
-    super.initState();
-    _markRead();
-  }
-
-  @override
   void dispose() {
     _msgCtrl.dispose();
     _scrollCtrl.dispose();
     super.dispose();
-  }
-
-  Future<void> _markRead() async {
-    final auth = context.read<AuthProvider>();
-    final chat = context.read<ChatProvider>();
-    final myUid = auth.currentUser?.uid ?? '';
-    if (myUid.isEmpty) return;
-    final chatId = ChatThread.buildId(myUid, widget.otherUid);
-    await chat.markAsRead(chatId: chatId, myUid: myUid);
   }
 
   void _scrollToBottom() {
@@ -77,23 +61,17 @@ class _ChatScreenState extends State<ChatScreen> {
     HapticFeedback.lightImpact();
 
     final err = await chat.sendMessage(
-      myUid: me.uid,
-      myName: me.fullName,
-      myRole: me.role.name,
-      otherUid: widget.otherUid,
-      otherName: widget.otherName,
-      otherRole: widget.otherRole,
-      text: text,
+      chatRoomId: widget.chatRoomId,
+      senderId: me.uid,
+      receiverId: widget.peerId,
+      messageText: text,
     );
 
     if (mounted) {
       setState(() => _sending = false);
       if (err != null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(err),
-            backgroundColor: AppTheme.errorRed,
-          ),
+          SnackBar(content: Text(err), backgroundColor: AppTheme.errorRed),
         );
       } else {
         _scrollToBottom();
@@ -105,7 +83,6 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final myUid = auth.currentUser?.uid ?? '';
-    final chatId = ChatThread.buildId(myUid, widget.otherUid);
 
     return Scaffold(
       backgroundColor: AppTheme.bgLight,
@@ -120,10 +97,10 @@ class _ChatScreenState extends State<ChatScreen> {
           children: [
             CircleAvatar(
               radius: 18,
-              backgroundColor: Colors.white.withOpacity(0.25),
+              backgroundColor: Colors.white.withValues(alpha: 0.25),
               child: Text(
-                widget.otherName.isNotEmpty
-                    ? widget.otherName[0].toUpperCase()
+                widget.peerName.isNotEmpty
+                    ? widget.peerName[0].toUpperCase()
                     : '?',
                 style: const TextStyle(
                     color: Colors.white,
@@ -136,16 +113,11 @@ class _ChatScreenState extends State<ChatScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  widget.otherName,
+                  widget.peerName,
                   style: const TextStyle(
                       color: Colors.white,
                       fontSize: 15,
                       fontWeight: FontWeight.w700),
-                ),
-                Text(
-                  _roleLabel(widget.otherRole),
-                  style: TextStyle(
-                      color: Colors.white.withOpacity(0.75), fontSize: 11),
                 ),
               ],
             ),
@@ -154,11 +126,11 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       body: Column(
         children: [
-          // ── Messages list ───────────────────────────────────────────────
           Expanded(
             child: StreamBuilder<List<ChatMessage>>(
-              stream:
-                  context.read<ChatProvider>().messagesStream(chatId),
+              stream: context
+                  .read<ChatProvider>()
+                  .getMessages(widget.chatRoomId),
               builder: (context, snap) {
                 if (snap.connectionState == ConnectionState.waiting) {
                   return const Center(child: CircularProgressIndicator());
@@ -167,7 +139,6 @@ class _ChatScreenState extends State<ChatScreen> {
                 if (messages.isEmpty) {
                   return _buildEmptyState();
                 }
-                // Scroll to bottom whenever new messages arrive
                 _scrollToBottom();
                 return ListView.builder(
                   controller: _scrollCtrl,
@@ -178,13 +149,11 @@ class _ChatScreenState extends State<ChatScreen> {
                     final msg = messages[i];
                     final isMe = msg.senderId == myUid;
                     final showDate = i == 0 ||
-                        !_sameDay(
-                            messages[i - 1].createdAt, msg.createdAt);
+                        !_sameDay(messages[i - 1].timestamp, msg.timestamp);
                     return Column(
                       children: [
-                        if (showDate) _buildDateDivider(msg.createdAt),
-                        _MessageBubble(
-                            message: msg, isMe: isMe),
+                        if (showDate) _buildDateDivider(msg.timestamp),
+                        _MessageBubble(message: msg, isMe: isMe),
                       ],
                     );
                   },
@@ -192,8 +161,6 @@ class _ChatScreenState extends State<ChatScreen> {
               },
             ),
           ),
-
-          // ── Input bar ───────────────────────────────────────────────────
           _buildInputBar(),
         ],
       ),
@@ -208,14 +175,15 @@ class _ChatScreenState extends State<ChatScreen> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: AppTheme.adminBlue.withOpacity(0.08),
+              color: AppTheme.adminBlue.withValues(alpha: 0.08),
               shape: BoxShape.circle,
             ),
             child: Icon(Icons.chat_bubble_outline,
-                size: 48, color: AppTheme.adminBlue.withOpacity(0.5)),
+                size: 48,
+                color: AppTheme.adminBlue.withValues(alpha: 0.5)),
           ),
           const SizedBox(height: 16),
-          Text(
+          const Text(
             'ចាប់ផ្ដើមការសន្ទនា',
             style: TextStyle(
                 fontSize: 15,
@@ -224,7 +192,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           const SizedBox(height: 6),
           Text(
-            'ផ្ញើសារដំបូងទៅ ${widget.otherName}',
+            'ផ្ញើសារដំបូងទៅ ${widget.peerName}',
             style:
                 const TextStyle(fontSize: 12, color: AppColors.textMuted),
           ),
@@ -238,30 +206,26 @@ class _ChatScreenState extends State<ChatScreen> {
     String label;
     if (_sameDay(date, now)) {
       label = 'ថ្ងៃនេះ';
-    } else if (_sameDay(
-        date, now.subtract(const Duration(days: 1)))) {
+    } else if (_sameDay(date, now.subtract(const Duration(days: 1)))) {
       label = 'ម្សិលមិញ';
     } else {
-      label =
-          '${date.day}/${date.month}/${date.year}';
+      label = '${date.day}/${date.month}/${date.year}';
     }
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 12),
       child: Row(
         children: [
-          const Expanded(
-              child: Divider(color: Color(0xFFDDDDDD))),
+          const Expanded(child: Divider(color: Color(0xFFDDDDDD))),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             child: Text(
               label,
-              style: const TextStyle(
-                  fontSize: 11, color: AppColors.textMuted),
+              style:
+                  const TextStyle(fontSize: 11, color: AppColors.textMuted),
             ),
           ),
-          const Expanded(
-              child: Divider(color: Color(0xFFDDDDDD))),
+          const Expanded(child: Divider(color: Color(0xFFDDDDDD))),
         ],
       ),
     );
@@ -275,7 +239,7 @@ class _ChatScreenState extends State<ChatScreen> {
         color: Colors.white,
         boxShadow: [
           BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 8,
               offset: const Offset(0, -2))
         ],
@@ -298,11 +262,11 @@ class _ChatScreenState extends State<ChatScreen> {
                 style: const TextStyle(fontSize: 14),
                 decoration: const InputDecoration(
                   hintText: 'វាយសារ...',
-                  hintStyle: TextStyle(
-                      color: AppColors.textMuted, fontSize: 13),
+                  hintStyle:
+                      TextStyle(color: AppColors.textMuted, fontSize: 13),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+                  contentPadding:
+                      EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 ),
               ),
             ),
@@ -316,12 +280,12 @@ class _ChatScreenState extends State<ChatScreen> {
               height: 46,
               decoration: BoxDecoration(
                 color: _sending
-                    ? AppTheme.adminBlue.withOpacity(0.4)
+                    ? AppTheme.adminBlue.withValues(alpha: 0.4)
                     : AppTheme.adminBlue,
                 shape: BoxShape.circle,
                 boxShadow: [
                   BoxShadow(
-                    color: AppTheme.adminBlue.withOpacity(0.3),
+                    color: AppTheme.adminBlue.withValues(alpha: 0.3),
                     blurRadius: 8,
                     offset: const Offset(0, 3),
                   )
@@ -344,19 +308,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _sameDay(DateTime a, DateTime b) =>
       a.year == b.year && a.month == b.month && a.day == b.day;
-
-  String _roleLabel(String role) {
-    switch (role) {
-      case 'admin':
-        return 'អ្នកគ្រប់គ្រង';
-      case 'farmer':
-        return 'កសិករ';
-      case 'serviceProvider':
-        return 'អ្នកផ្តល់សេវា';
-      default:
-        return role;
-    }
-  }
 }
 
 // ── Message bubble ────────────────────────────────────────────────────────────
@@ -379,10 +330,10 @@ class _MessageBubble extends StatelessWidget {
           if (!isMe) ...[
             CircleAvatar(
               radius: 14,
-              backgroundColor: AppTheme.adminBlue.withOpacity(0.15),
+              backgroundColor: AppTheme.adminBlue.withValues(alpha: 0.15),
               child: Text(
-                message.senderName.isNotEmpty
-                    ? message.senderName[0].toUpperCase()
+                message.senderId.isNotEmpty
+                    ? message.senderId[0].toUpperCase()
                     : '?',
                 style: TextStyle(
                     fontSize: 11,
@@ -397,11 +348,10 @@ class _MessageBubble extends StatelessWidget {
               constraints: BoxConstraints(
                 maxWidth: MediaQuery.of(context).size.width * 0.70,
               ),
-              padding: const EdgeInsets.symmetric(
-                  horizontal: 14, vertical: 9),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
               decoration: BoxDecoration(
-                color:
-                    isMe ? AppTheme.adminBlue : Colors.white,
+                color: isMe ? AppTheme.adminBlue : Colors.white,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(18),
                   topRight: const Radius.circular(18),
@@ -410,7 +360,7 @@ class _MessageBubble extends StatelessWidget {
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withOpacity(0.06),
+                    color: Colors.black.withValues(alpha: 0.06),
                     blurRadius: 4,
                     offset: const Offset(0, 2),
                   )
@@ -420,7 +370,7 @@ class _MessageBubble extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                   Text(
-                    message.text,
+                    message.message,
                     style: TextStyle(
                         fontSize: 14,
                         color: isMe
@@ -429,31 +379,14 @@ class _MessageBubble extends StatelessWidget {
                         height: 1.4),
                   ),
                   const SizedBox(height: 3),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Text(
-                        _formatTime(message.createdAt),
-                        style: TextStyle(
-                          fontSize: 10,
-                          color: isMe
-                              ? Colors.white.withOpacity(0.65)
-                              : AppColors.textMuted,
-                        ),
-                      ),
-                      if (isMe) ...[
-                        const SizedBox(width: 4),
-                        Icon(
-                          message.isRead
-                              ? Icons.done_all
-                              : Icons.done,
-                          size: 12,
-                          color: message.isRead
-                              ? Colors.white
-                              : Colors.white.withOpacity(0.6),
-                        ),
-                      ]
-                    ],
+                  Text(
+                    _formatTime(message.timestamp),
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: isMe
+                          ? Colors.white.withValues(alpha: 0.65)
+                          : AppColors.textMuted,
+                    ),
                   ),
                 ],
               ),

@@ -249,36 +249,82 @@ class _RegisterScreenState extends State<RegisterScreen>
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final size = MediaQuery.of(context).size;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A1F0E),
       body: Stack(
+        fit: StackFit.expand,
         children: [
-          BackgroundLayers(size: size),
+          // ── Full-screen rice paddy background ───────────────────────────
+          Image.asset(
+            'assets/images/background_login_form.jfif',
+            fit: BoxFit.cover,
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: [
+                  Colors.black.withOpacity(0.55),
+                  Colors.black.withOpacity(0.70),
+                ],
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+              ),
+            ),
+          ),
+
+          // ── Centered registration card ──────────────────────────────────
           SafeArea(
-            child: Column(
-              children: [
-                _buildTopBar(),
-                _buildStepIndicator(),
-                Expanded(
-                  child: FadeTransition(
-                    opacity: _fade,
-                    child: SingleChildScrollView(
-                      physics: const BouncingScrollPhysics(),
-                      padding:
-                          const EdgeInsets.fromLTRB(20, 16, 20, 32),
-                      child: Form(
-                        key: _formKey,
-                        child: _buildCurrentStep(),
+            child: Center(
+              child: SingleChildScrollView(
+                physics: const BouncingScrollPhysics(),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 20, vertical: 16),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(28),
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        image: DecorationImage(
+                          image: const AssetImage(
+                              'assets/images/background_login_form.jfif'),
+                          fit: BoxFit.cover,
+                          colorFilter: ColorFilter.mode(
+                            Colors.black.withOpacity(0.45),
+                            BlendMode.darken,
+                          ),
+                        ),
+                      ),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          // Top bar
+                          _buildTopBar(),
+
+                          // Step indicator
+                          _buildStepIndicator(),
+
+                          // Form content
+                          FadeTransition(
+                            opacity: _fade,
+                            child: Form(
+                              key: _formKey,
+                              child: _buildCurrentStep(),
+                            ),
+                          ),
+
+                          // Action bar
+                          _buildActionBar(auth),
+                        ],
                       ),
                     ),
                   ),
                 ),
-                _buildActionBar(auth),
-              ],
+              ),
             ),
           ),
+
           if (auth.isLoading) _UploadOverlay(auth: auth),
         ],
       ),
@@ -295,15 +341,23 @@ class _RegisterScreenState extends State<RegisterScreen>
                 color: Colors.white70, size: 20),
             onPressed: _onBack,
           ),
-          Expanded(
-            child: Text(
-              'ចុះឈ្មោះថ្មី',
-              style: TextStyle(
-                fontFamily: 'KhmerOSBattambang',
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: Colors.white.withOpacity(0.9),
-              ),
+          const Text(
+            'តោះជួល!',
+            style: TextStyle(
+              fontFamily: 'KhmerOSBattambang',
+              fontSize: 18,
+              fontWeight: FontWeight.w700,
+              color: Colors.white,
+            ),
+          ),
+          const Spacer(),
+          Text(
+            'ចុះឈ្មោះថ្មី',
+            style: TextStyle(
+              fontFamily: 'KhmerOSBattambang',
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: Colors.white.withOpacity(0.9),
             ),
           ),
         ],
@@ -883,16 +937,8 @@ class _RegisterScreenState extends State<RegisterScreen>
       );
 
   Widget _buildActionBar(AuthProvider auth) {
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-    return Container(
-      padding:
-          EdgeInsets.fromLTRB(20, 12, 20, 20 + bottomPadding),
-      decoration: BoxDecoration(
-        color: const Color(0xFF0A1F0E),
-        border: Border(
-          top: BorderSide(color: Colors.white.withOpacity(0.08)),
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       child: Row(
         children: [
           if (_step > 0) ...[
@@ -917,7 +963,7 @@ class _RegisterScreenState extends State<RegisterScreen>
           ],
           Expanded(
             child: GreenButton(
-              label: _step < 2 ? 'បន្ទាប់ →' : 'ចុះឈ្មោះ',
+              label: _step < 2 ? 'បន្ត →' : 'ចុះឈ្មោះ',
               loading: auth.isLoading,
               onPressed: _onNext,
             ),
@@ -1383,63 +1429,58 @@ class _StepCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.06),
-            borderRadius: BorderRadius.circular(24),
-            border:
-                Border.all(color: Colors.white.withOpacity(0.1)),
-          ),
-          padding: const EdgeInsets.all(22),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(horizontal: 20),
+      padding: const EdgeInsets.all(22),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.35),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: Colors.white.withOpacity(0.10)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Row(
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: accentColor.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(icon, color: accentColor, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: accentColor.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(10),
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontFamily: 'KhmerOSBattambang',
+                      fontSize: 15,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
                     ),
-                    child: Icon(icon, color: accentColor, size: 20),
                   ),
-                  const SizedBox(width: 12),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontFamily: 'KhmerOSBattambang',
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
-                          color: Colors.white,
-                        ),
-                      ),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontFamily: 'KhmerOSBattambang',
-                          fontSize: 11,
-                          color: Colors.white.withOpacity(0.45),
-                        ),
-                      ),
-                    ],
+                  Text(
+                    subtitle,
+                    style: TextStyle(
+                      fontFamily: 'KhmerOSBattambang',
+                      fontSize: 11,
+                      color: Colors.white.withOpacity(0.45),
+                    ),
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              const Divider(color: Colors.white10, height: 1),
-              const SizedBox(height: 20),
-              child,
             ],
           ),
-        ),
+          const SizedBox(height: 20),
+          const Divider(color: Colors.white10, height: 1),
+          const SizedBox(height: 20),
+          child,
+        ],
       ),
     );
   }

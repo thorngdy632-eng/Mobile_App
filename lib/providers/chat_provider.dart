@@ -1,177 +1,127 @@
-// lib/providers/chat_provider.dart
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/chat_message.dart';
-import '../models/user_model.dart';
 
 class ChatProvider extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // ── Admin's list of all chat threads ─────────────────────────────────────
-  List<ChatThread> _adminThreads = [];
-  List<ChatThread> get adminThreads => _adminThreads;
-
-  bool _isLoading = false;
-  bool get isLoading => _isLoading;
-
-  String? _error;
-  String? get error => _error;
-
-  // ── Listen to all chat threads that involve a given UID ──────────────────
-  // For admin: listens to all threads where admin is a participant.
-  // For farmer/provider: same — only threads involving them.
-
-  Stream<List<ChatThread>> threadsStream(String uid) {
+  /// Stream all chat rooms where [uid] is a member, ordered by most recent.
+  Stream<List<ChatRoom>> getChatRooms(String uid) {
     return _db
         .collection('chats')
-        .where('participants', arrayContains: uid)
-        .orderBy('lastMessageAt', descending: true)
+        .where('members', arrayContains: uid)
+        .orderBy('lastMessageTime', descending: true)
         .snapshots()
         .map((snap) => snap.docs
-            .map((d) => ChatThread.fromMap(d.data(), d.id))
+            .map((d) => ChatRoom.fromMap(d.data(), d.id))
             .toList());
   }
 
-  // ── Listen to messages inside a thread ───────────────────────────────────
-
-  Stream<List<ChatMessage>> messagesStream(String chatId) {
+  /// Stream messages inside a chat room, ordered oldest → newest.
+  Stream<List<ChatMessage>> getMessages(String chatRoomId) {
     return _db
         .collection('chats')
-        .doc(chatId)
+        .doc(chatRoomId)
         .collection('messages')
-        .orderBy('createdAt', descending: false)
+        .orderBy('timestamp', descending: false)
         .snapshots()
         .map((snap) => snap.docs
             .map((d) => ChatMessage.fromMap(d.data(), d.id))
             .toList());
   }
 
-  // ── Send a message (creates thread if needed) ─────────────────────────────
-
+  /// Send a message. Creates the chat room if it doesn't exist yet.
   Future<String?> sendMessage({
-    required String myUid,
-    required String myName,
-    required String myRole,
-    required String otherUid,
-    required String otherName,
-    required String otherRole,
-    required String text,
+    required String chatRoomId,
+    required String senderId,
+    required String receiverId,
+    required String messageText,
   }) async {
-    if (text.trim().isEmpty) return null;
+    if (messageText.trim().isEmpty) return null;
 
-    final chatId = ChatThread.buildId(myUid, otherUid);
-    final chatRef = _db.collection('chats').doc(chatId);
+    final chatRef = _db.collection('chats').doc(chatRoomId);
     final msgRef = chatRef.collection('messages').doc();
 
     try {
       await _db.runTransaction((tx) async {
         final chatSnap = await tx.get(chatRef);
 
-        final message = ChatMessage(
+        final msg = ChatMessage(
           id: msgRef.id,
-          senderId: myUid,
-          senderName: myName,
-          text: text.trim(),
-          createdAt: DateTime.now(),
-          isRead: false,
+          senderId: senderId,
+          receiverId: receiverId,
+          message: messageText.trim(),
+          timestamp: DateTime.now(),
         );
 
-        // Write the message
-        tx.set(msgRef, message.toMap());
+        tx.set(msgRef, msg.toMap());
 
         if (!chatSnap.exists) {
-          // Create thread for the first time
-          final thread = ChatThread(
-            id: chatId,
-            participants: [myUid, otherUid],
-            participantNames: {myUid: myName, otherUid: otherName},
-            participantRoles: {myUid: myRole, otherUid: otherRole},
-            lastMessage: text.trim(),
-            lastMessageAt: DateTime.now(),
-            unreadCount: {myUid: 0, otherUid: 1},
-            createdAt: DateTime.now(),
-          );
-          tx.set(chatRef, thread.toMap());
+          tx.set(chatRef, {
+            'members': [senderId, receiverId],
+            'lastMessage': messageText.trim(),
+            'lastMessageTime': Timestamp.fromDate(DateTime.now()),
+          });
         } else {
-          // Update existing thread
-          final current =
-              ChatThread.fromMap(chatSnap.data()!, chatSnap.id);
-          final newUnread = Map<String, int>.from(current.unreadCount);
-          newUnread[otherUid] = (newUnread[otherUid] ?? 0) + 1;
-          newUnread[myUid] = 0; // sender's own unread = 0
-
           tx.update(chatRef, {
-            'lastMessage': text.trim(),
-            'lastMessageAt': Timestamp.fromDate(DateTime.now()),
-            'unreadCount': newUnread,
+            'lastMessage': messageText.trim(),
+            'lastMessageTime': Timestamp.fromDate(DateTime.now()),
           });
         }
       });
       return null;
     } catch (e) {
+      debugPrint('sendMessage error: $e');
       return 'មានបញ្ហាក្នុងការផ្ញើ: $e';
     }
   }
 
-  // ── Mark all messages from the other person as read ───────────────────────
-
-  Future<void> markAsRead({
-    required String chatId,
+  /// Find existing chat room between [myUid] and [peerId], or create a new one.
+  /// Returns the chat room ID.
+  Future<String> createOrGetChatRoom({
     required String myUid,
+    required String peerId,
   }) async {
-    try {
-      // Reset my unread count to 0
-      await _db.collection('chats').doc(chatId).update({
-        'unreadCount.$myUid': 0,
-      });
+    final existingId = ChatRoom.buildId(myUid, peerId);
+    final existing = await _db.collection('chats').doc(existingId).get();
 
-      // Mark unread messages as read
-      final unreadMsgs = await _db
-          .collection('chats')
-          .doc(chatId)
-          .collection('messages')
-          .where('senderId', isNotEqualTo: myUid)
-          .where('isRead', isEqualTo: false)
-          .get();
+    if (existing.exists) return existingId;
 
-      final batch = _db.batch();
-      for (final doc in unreadMsgs.docs) {
-        batch.update(doc.reference, {'isRead': true});
-      }
-      await batch.commit();
-    } catch (e) {
-      debugPrint('markAsRead error: $e');
-    }
+    await _db.collection('chats').doc(existingId).set({
+      'members': [myUid, peerId],
+      'lastMessage': '',
+      'lastMessageTime': Timestamp.fromDate(DateTime.now()),
+    });
+
+    return existingId;
   }
 
-  // ── Total unread count for a user (for badge display) ────────────────────
-
+  /// Total unread count for a user across all rooms.
   Stream<int> totalUnreadStream(String uid) {
     return _db
         .collection('chats')
-        .where('participants', arrayContains: uid)
+        .where('members', arrayContains: uid)
         .snapshots()
-        .map((snap) {
-      int total = 0;
-      for (final doc in snap.docs) {
-        final thread = ChatThread.fromMap(doc.data(), doc.id);
-        total += thread.unreadFor(uid);
-      }
-      return total;
-    });
+        .map((snap) => snap.docs.length);
   }
 
-  // ── Admin: get all users for starting a chat ─────────────────────────────
-
-  Future<List<UserModel>> fetchAllUsers() async {
+  /// Fetch a user's display name from the users collection.
+  Future<String> getUserName(String uid) async {
     try {
-      final snap = await _db.collection('users').get();
-      return snap.docs
-          .map((d) => UserModel.fromMap(d.data(), d.id))
-          .toList();
+      final doc = await _db.collection('users').doc(uid).get();
+      return doc.data()?['fullName'] ?? 'អ្នកប្រើប្រាស់';
     } catch (e) {
-      debugPrint('fetchAllUsers error: $e');
-      return [];
+      return 'អ្នកប្រើប្រាស់';
+    }
+  }
+
+  /// Fetch a user's role from the users collection.
+  Future<String> getUserRole(String uid) async {
+    try {
+      final doc = await _db.collection('users').doc(uid).get();
+      return doc.data()?['role'] ?? '';
+    } catch (e) {
+      return '';
     }
   }
 }

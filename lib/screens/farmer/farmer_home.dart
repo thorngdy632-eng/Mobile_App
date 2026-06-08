@@ -1,12 +1,14 @@
 // lib/screens/farmer/farmer_home.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/app_provider.dart';
+import '../../models/chat_message.dart';
 import '../../providers/chat_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
-import '../auth/login_screen.dart';
+
 import '../chat/chat_screen.dart';
 import '../profile/edit_profile_screen.dart';
 
@@ -84,12 +86,6 @@ class _FarmerHomeState extends State<FarmerHome> {
             tooltip: 'ចេញ',
             onPressed: () async {
               await auth.logout();
-              if (context.mounted) {
-                Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (_) => const LoginScreen()),
-                  (route) => false,
-                );
-              }
             },
           ),
         ],
@@ -163,12 +159,19 @@ class _FarmerHomeState extends State<FarmerHome> {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
+      isDismissible: true,
+      enableDrag: true,
       backgroundColor: Colors.transparent,
-      builder: (_) => DraggableScrollableSheet(
-        initialChildSize: 0.65,
-        maxChildSize: 0.92,
-        minChildSize: 0.4,
-        builder: (ctx, scrollCtrl) => Container(
+      builder: (_) => GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTap: () => Navigator.pop(context),
+        child: DraggableScrollableSheet(
+          initialChildSize: 0.65,
+          maxChildSize: 0.92,
+          minChildSize: 0.4,
+          builder: (ctx, scrollCtrl) => GestureDetector(
+            onTap: () {},
+            child: Container(
           decoration: const BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -191,17 +194,17 @@ class _FarmerHomeState extends State<FarmerHome> {
               ),
               const Divider(height: 16),
               Expanded(
-                child: StreamBuilder<List>(
+                child: StreamBuilder<List<ChatRoom>>(
                   stream: context
                       .read<ChatProvider>()
-                      .threadsStream(myUid),
+                      .getChatRooms(myUid),
                   builder: (context, snap) {
                     if (snap.connectionState == ConnectionState.waiting) {
                       return const Center(
                           child: CircularProgressIndicator());
                     }
-                    final threads = snap.data ?? [];
-                    if (threads.isEmpty) {
+                    final rooms = snap.data ?? [];
+                    if (rooms.isEmpty) {
                       return const Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -219,85 +222,63 @@ class _FarmerHomeState extends State<FarmerHome> {
                         ),
                       );
                     }
+                    final chatProv = context.read<ChatProvider>();
                     return ListView.separated(
                       controller: scrollCtrl,
-                      itemCount: threads.length,
+                      itemCount: rooms.length,
                       separatorBuilder: (_, __) => const Divider(
                           height: 1,
                           indent: 70,
                           color: Color(0xFFF5F5F5)),
                       itemBuilder: (ctx2, i) {
-                        final thread = threads[i];
-                        final unread = thread.unreadFor(myUid);
-                        final otherUid = thread.otherUid(myUid);
-                        final otherName = thread.otherName(myUid);
-                        final otherRole = thread.otherRole(myUid);
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor:
-                                AppTheme.adminBlue.withOpacity(0.15),
-                            child: Text(
-                              otherName.isNotEmpty
-                                  ? otherName[0].toUpperCase()
-                                  : '?',
-                              style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: AppTheme.adminBlue),
-                            ),
-                          ),
-                          title: Text(
-                            otherName,
-                            style: TextStyle(
-                              fontWeight: unread > 0
-                                  ? FontWeight.w700
-                                  : FontWeight.w600,
-                              fontSize: 14,
-                            ),
-                          ),
-                          subtitle: Text(
-                            thread.lastMessage,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: unread > 0
-                                  ? AppTheme.textPrimary
-                                  : AppColors.textMuted,
-                              fontWeight: unread > 0
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                            ),
-                          ),
-                          trailing: unread > 0
-                              ? Container(
-                                  width: 20,
-                                  height: 20,
-                                  decoration: const BoxDecoration(
-                                    color: AppTheme.farmerGreen,
-                                    shape: BoxShape.circle,
-                                  ),
-                                  child: Center(
-                                    child: Text(
-                                      '$unread',
-                                      style: const TextStyle(
-                                          color: Colors.white,
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold),
-                                    ),
-                                  ),
-                                )
-                              : null,
-                          onTap: () {
-                            Navigator.pop(context);
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => ChatScreen(
-                                  otherUid: otherUid,
-                                  otherName: otherName,
-                                  otherRole: otherRole,
+                        final room = rooms[i];
+                        final otherUid = room.otherUid(myUid);
+                        return FutureBuilder<String>(
+                          future: chatProv.getUserName(otherUid),
+                          builder: (ctx3, nameSnap) {
+                            final otherName = nameSnap.data ?? '...';
+                            return ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor:
+                                    AppTheme.adminBlue.withValues(alpha: 0.15),
+                                child: Text(
+                                  otherName.isNotEmpty
+                                      ? otherName[0].toUpperCase()
+                                      : '?',
+                                  style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: AppTheme.adminBlue),
                                 ),
                               ),
+                              title: Text(
+                                otherName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  fontSize: 14,
+                                ),
+                              ),
+                              subtitle: Text(
+                                room.lastMessage,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.textMuted,
+                                ),
+                              ),
+                              onTap: () {
+                                Navigator.pop(context);
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => ChatScreen(
+                                      chatRoomId: room.id,
+                                      peerId: otherUid,
+                                      peerName: otherName,
+                                    ),
+                                  ),
+                                );
+                              },
                             );
                           },
                         );
@@ -309,6 +290,8 @@ class _FarmerHomeState extends State<FarmerHome> {
             ],
           ),
         ),
+        ),
+      ),
       ),
     );
   }
@@ -345,8 +328,15 @@ class _FarmerHomeState extends State<FarmerHome> {
                 CircleAvatar(
                   radius: 28,
                   backgroundColor: Colors.white.withOpacity(0.2),
-                  child: const Text('👨‍🌾',
-                      style: TextStyle(fontSize: 28)),
+                  backgroundImage: user?.profileImageUrl != null &&
+                          user!.profileImageUrl!.isNotEmpty
+                      ? MemoryImage(base64Decode(user.profileImageUrl!))
+                      : null,
+                  child: user?.profileImageUrl == null ||
+                          user!.profileImageUrl!.isEmpty
+                      ? const Text('👨‍🌾',
+                          style: TextStyle(fontSize: 28))
+                      : null,
                 ),
                 const SizedBox(width: 16),
                 Expanded(
@@ -608,15 +598,22 @@ class _FarmerHomeState extends State<FarmerHome> {
           CircleAvatar(
             radius: 50,
             backgroundColor: AppTheme.farmerGreen.withOpacity(0.15),
-            child: Text(
-              user?.fullName?.isNotEmpty == true
-                  ? user!.fullName[0].toUpperCase()
-                  : '👨‍🌾',
-              style: TextStyle(
-                  fontSize: user?.fullName?.isNotEmpty == true ? 36 : 48,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.farmerGreen),
-            ),
+            backgroundImage: user?.profileImageUrl != null &&
+                    user!.profileImageUrl!.isNotEmpty
+                ? MemoryImage(base64Decode(user.profileImageUrl!))
+                : null,
+            child: user?.profileImageUrl == null ||
+                    user!.profileImageUrl!.isEmpty
+                ? Text(
+                    user?.fullName?.isNotEmpty == true
+                        ? user!.fullName[0].toUpperCase()
+                        : '👨‍🌾',
+                    style: TextStyle(
+                        fontSize: user?.fullName?.isNotEmpty == true ? 36 : 48,
+                        fontWeight: FontWeight.bold,
+                        color: AppTheme.farmerGreen),
+                  )
+                : null,
           ),
           const SizedBox(height: 12),
           Text(
@@ -636,8 +633,8 @@ class _FarmerHomeState extends State<FarmerHome> {
               border: Border.all(
                   color: AppTheme.farmerGreen.withOpacity(0.3)),
             ),
-            child: const Text(
-              'កសិករ',
+            child: Text(
+              user?.roleDisplayName ?? 'កសិករ',
               style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
@@ -699,13 +696,6 @@ class _FarmerHomeState extends State<FarmerHome> {
               onPressed: () async {
                 final auth = context.read<AuthProvider>();
                 await auth.logout();
-                if (context.mounted) {
-                  Navigator.of(context).pushAndRemoveUntil(
-                    MaterialPageRoute(
-                        builder: (_) => const LoginScreen()),
-                    (route) => false,
-                  );
-                }
               },
             ),
           ),
@@ -849,7 +839,10 @@ class _FarmerHomeState extends State<FarmerHome> {
     final notesCtrl = TextEditingController();
     final cropCtrl = TextEditingController(text: 'ស្រូវ');
     final pesticideCtrl = TextEditingController();
-    String tractorService = preselect ?? 'ភ្ជួរស្រែ';
+    final tractorOptions = ['ភ្ជួរស្រែ', 'ច្រូតស្រូវ', 'ដាំស្រូវ', 'ជីកបង្ហូរ'];
+    String tractorService = tractorOptions.contains(preselect)
+        ? preselect!
+        : 'ភ្ជួរស្រែ';
 
     showModalBottomSheet(
       context: context,
@@ -931,7 +924,7 @@ class _FarmerHomeState extends State<FarmerHome> {
                 const SizedBox(height: 16),
                 if (selectedType == 'tractor') ...[
                   DropdownButtonFormField<String>(
-                    value: tractorService,
+                    initialValue: tractorService,
                     decoration: const InputDecoration(
                         labelText: 'ប្រភេទការងារ'),
                     items: [
