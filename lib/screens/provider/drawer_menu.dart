@@ -1,4 +1,5 @@
 // lib/screens/drawer_menu.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
@@ -35,16 +36,23 @@ class AppDrawer extends StatelessWidget {
                   CircleAvatar(
                     radius: 32,
                     backgroundColor: Colors.white24,
-                    // Show first letter of name if available
-                    child: user?.fullName.isNotEmpty == true
-                        ? Text(
-                            user!.fullName[0].toUpperCase(),
-                            style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 26,
-                                fontWeight: FontWeight.bold),
-                          )
-                        : const Icon(Icons.person, color: Colors.white, size: 38),
+                    backgroundImage: user?.profileImageUrl != null &&
+                            user!.profileImageUrl!.isNotEmpty
+                        ? MemoryImage(base64Decode(user.profileImageUrl!))
+                        : null,
+                    child: user?.profileImageUrl == null ||
+                            user!.profileImageUrl!.isEmpty
+                        ? (user?.fullName.isNotEmpty == true
+                            ? Text(
+                                user!.fullName[0].toUpperCase(),
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 26,
+                                    fontWeight: FontWeight.bold),
+                              )
+                            : const Icon(Icons.person,
+                                color: Colors.white, size: 38))
+                        : null,
                   ),
                   const SizedBox(height: 14),
                   // Real full name from Firestore

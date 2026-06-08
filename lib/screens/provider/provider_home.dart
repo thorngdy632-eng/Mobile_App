@@ -1,6 +1,7 @@
 // lib/screens/provider/provider_home.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/chat_message.dart';
@@ -174,14 +175,32 @@ class _ProviderHomeState extends State<ProviderHome> {
                 future: chatProv.getUserName(otherUid),
                 builder: (ctx2, nameSnap) {
                   final otherName = nameSnap.data ?? '...';
-                  return ListTile(
+                  return FutureBuilder<DocumentSnapshot>(
+                    future: FirebaseFirestore.instance
+                        .collection('users')
+                        .doc(otherUid)
+                        .get(),
+                    builder: (ctx3, userSnap) {
+                      final peerData =
+                          userSnap.data?.data() as Map<String, dynamic>?;
+                      final peerImage =
+                          peerData?['profileImageUrl'] as String?;
+                      ImageProvider? peerAvatar;
+                      if (peerImage != null && peerImage.isNotEmpty) {
+                        try {
+                          peerAvatar = MemoryImage(base64Decode(peerImage));
+                        } catch (_) {}
+                      }
+                      return ListTile(
                     contentPadding: const EdgeInsets.symmetric(
                         horizontal: 16, vertical: 6),
                     leading: CircleAvatar(
                       radius: 26,
                       backgroundColor:
                           AppTheme.adminBlue.withOpacity(0.15),
-                      child: Text(
+                      backgroundImage: peerAvatar,
+                      child: peerAvatar == null
+                          ? Text(
                         otherName.isNotEmpty
                             ? otherName[0].toUpperCase()
                             : '?',
@@ -189,7 +208,8 @@ class _ProviderHomeState extends State<ProviderHome> {
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                             color: AppTheme.adminBlue),
-                      ),
+                      )
+                          : null,
                     ),
                     title: Text(
                       otherName,
@@ -222,9 +242,12 @@ class _ProviderHomeState extends State<ProviderHome> {
                           chatRoomId: room.id,
                           peerId: otherUid,
                           peerName: otherName,
+                          peerImageBase64: peerImage,
                         ),
                       ),
                     ),
+                  );
+                    },
                   );
                 },
               );

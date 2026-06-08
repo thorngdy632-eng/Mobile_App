@@ -1,4 +1,5 @@
 // lib/screens/admin/user_list_screen.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/user_model.dart';
@@ -189,15 +190,21 @@ class _UserTile extends StatelessWidget {
       leading: CircleAvatar(
         radius: 24,
         backgroundColor: _roleColor.withOpacity(0.15),
-        child: Text(
-          user.fullName.isNotEmpty
-              ? user.fullName[0].toUpperCase()
-              : '?',
-          style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-              color: _roleColor),
-        ),
+        backgroundImage: user.profileImageUrl != null &&
+                user.profileImageUrl!.isNotEmpty
+            ? MemoryImage(base64Decode(user.profileImageUrl!))
+            : null,
+        child: user.profileImageUrl == null || user.profileImageUrl!.isEmpty
+            ? Text(
+                user.fullName.isNotEmpty
+                    ? user.fullName[0].toUpperCase()
+                    : '?',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                    color: _roleColor),
+              )
+            : null,
       ),
       title: Text(
         user.fullName,

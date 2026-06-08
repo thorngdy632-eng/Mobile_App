@@ -1,6 +1,7 @@
 // lib/screens/farmer/farmer_home.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/app_provider.dart';
@@ -237,18 +238,38 @@ class _FarmerHomeState extends State<FarmerHome> {
                           future: chatProv.getUserName(otherUid),
                           builder: (ctx3, nameSnap) {
                             final otherName = nameSnap.data ?? '...';
-                            return ListTile(
+                            return FutureBuilder<DocumentSnapshot>(
+                              future: FirebaseFirestore.instance
+                                  .collection('users')
+                                  .doc(otherUid)
+                                  .get(),
+                              builder: (ctx4, userSnap) {
+                                final peerData = userSnap.data?.data()
+                                    as Map<String, dynamic>?;
+                                final peerImage = peerData?['profileImageUrl']
+                                    as String?;
+                                ImageProvider? peerAvatar;
+                                if (peerImage != null && peerImage.isNotEmpty) {
+                                  try {
+                                    peerAvatar =
+                                        MemoryImage(base64Decode(peerImage));
+                                  } catch (_) {}
+                                }
+                                return ListTile(
                               leading: CircleAvatar(
                                 backgroundColor:
                                     AppTheme.adminBlue.withValues(alpha: 0.15),
-                                child: Text(
+                                backgroundImage: peerAvatar,
+                                child: peerAvatar == null
+                                    ? Text(
                                   otherName.isNotEmpty
                                       ? otherName[0].toUpperCase()
                                       : '?',
                                   style: TextStyle(
                                       fontWeight: FontWeight.bold,
                                       color: AppTheme.adminBlue),
-                                ),
+                                )
+                                    : null,
                               ),
                               title: Text(
                                 otherName,
@@ -275,11 +296,14 @@ class _FarmerHomeState extends State<FarmerHome> {
                                       chatRoomId: room.id,
                                       peerId: otherUid,
                                       peerName: otherName,
+                                      peerImageBase64: peerImage,
                                     ),
                                   ),
                                 );
                               },
                             );
+                          },
+                        );
                           },
                         );
                       },

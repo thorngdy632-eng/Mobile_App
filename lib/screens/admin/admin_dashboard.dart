@@ -158,6 +158,7 @@ class _NavItem extends StatelessWidget {
         onTap: () { HapticFeedback.selectionClick(); onTap(index); },
         behavior: HitTestBehavior.opaque,
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Stack(
@@ -165,7 +166,7 @@ class _NavItem extends StatelessWidget {
               children: [
                 AnimatedContainer(
                   duration: const Duration(milliseconds: 250),
-                  padding: const EdgeInsets.all(7),
+                  padding: const EdgeInsets.all(6),
                   decoration: BoxDecoration(
                     color: active
                         ? _kAccentBlue.withOpacity(0.18)
@@ -194,15 +195,22 @@ class _NavItem extends StatelessWidget {
                   ),
               ],
             ),
-            const SizedBox(height: 3),
-            AnimatedDefaultTextStyle(
-              duration: const Duration(milliseconds: 250),
-              style: TextStyle(
-                fontSize: 9.5,
-                fontWeight: active ? FontWeight.w700 : FontWeight.w400,
-                color: active ? _kAccentBlue : _kTextMuted,
+            const SizedBox(height: 2),
+            SizedBox(
+              height: 14,
+              child: AnimatedDefaultTextStyle(
+                duration: const Duration(milliseconds: 250),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w400,
+                  color: active ? _kAccentBlue : _kTextMuted,
+                ),
+                child: Text(
+                  label,
+                  overflow: TextOverflow.ellipsis,
+                  maxLines: 1,
+                ),
               ),
-              child: Text(label),
             ),
           ],
         ),
@@ -478,7 +486,12 @@ class _DashboardTab extends StatelessWidget {
               _HeaderIconBtn(
                 icon: Icons.person_rounded,
                 onTap: () => Navigator.push(context,
-                  MaterialPageRoute(builder: (_) => const EditProfileScreen())),
+                  MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                ).then((_) {
+                  if (context.mounted) {
+                    context.read<AuthProvider>().refreshProfile();
+                  }
+                }),
               ),
             ],
           ),
@@ -1305,23 +1318,7 @@ class _ChatTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          color: _kNavyMid,
-          padding: EdgeInsets.fromLTRB(
-            16, MediaQuery.of(context).padding.top + 12, 16, 14),
-          child: const Row(
-            children: [
-              Text('ការសន្ទនា',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
-                  color: _kTextPrimary)),
-            ],
-          ),
-        ),
-        const Expanded(child: AdminChatListScreen()),
-      ],
-    );
+    return const AdminChatListScreen();
   }
 }
 
@@ -1407,7 +1404,12 @@ class _SettingsTab extends StatelessWidget {
                   subtitle: 'ឈ្មោះ · ទូរស័ព្ទ · អាសយដ្ឋាន',
                   color: _kAccentBlue,
                   onTap: () => Navigator.push(context,
-                    MaterialPageRoute(builder: (_) => const EditProfileScreen())),
+                    MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                  ).then((_) {
+                    if (context.mounted) {
+                      context.read<AuthProvider>().refreshProfile();
+                    }
+                  }),
                 ),
                 _SettingsTile(
                   icon: Icons.lock_outline_rounded,

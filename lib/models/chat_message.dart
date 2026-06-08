@@ -53,7 +53,7 @@ class ChatRoom {
   factory ChatRoom.fromMap(Map<String, dynamic> map, String id) {
     return ChatRoom(
       id: id,
-      members: List<String>.from(map['members'] ?? []),
+      members: List<String>.from(map['participants'] ?? []),
       lastMessage: map['lastMessage'] ?? '',
       lastMessageTime:
           (map['lastMessageTime'] as Timestamp?)?.toDate() ?? DateTime.now(),
@@ -62,7 +62,7 @@ class ChatRoom {
 
   Map<String, dynamic> toMap() {
     return {
-      'members': members,
+      'participants': members,
       'lastMessage': lastMessage,
       'lastMessageTime': Timestamp.fromDate(lastMessageTime),
     };
@@ -72,9 +72,10 @@ class ChatRoom {
   String otherUid(String myUid) =>
       members.firstWhere((uid) => uid != myUid, orElse: () => '');
 
-  /// Generate a deterministic chat room ID from two UIDs.
+  /// Generate a deterministic chat room ID from two UIDs (no separator,
+  /// matching the combined-UID convention in Firestore).
   static String buildId(String uid1, String uid2) {
     final sorted = [uid1, uid2]..sort();
-    return '${sorted[0]}_${sorted[1]}';
+    return '${sorted[0]}${sorted[1]}';
   }
 }
