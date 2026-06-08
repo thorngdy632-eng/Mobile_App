@@ -11,10 +11,6 @@ import '../farmer/farmer_home.dart';
 import '../provider/provider_home.dart';
 import 'shared_auth_widgets.dart';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// REGISTER SCREEN — 3-step stepper with ID card image upload
-// ─────────────────────────────────────────────────────────────────────────────
-
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
 
@@ -24,7 +20,6 @@ class RegisterScreen extends StatefulWidget {
 
 class _RegisterScreenState extends State<RegisterScreen>
     with TickerProviderStateMixin {
-  // ── Form state ────────────────────────────────────────────────────────────
   final _formKey = GlobalKey<FormState>();
   final _nameCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
@@ -37,16 +32,15 @@ class _RegisterScreenState extends State<RegisterScreen>
   String? _serviceType;
   bool _obscurePass = true;
   bool _obscureConfirm = true;
-  int _step = 0; // 0 = personal, 1 = role, 2 = security
+  int _step = 0;
 
-  // ── ID card images (service provider) ────────────────────────────────────
+  // ID card images — now required for ALL roles
   XFile? _idFront;
   XFile? _idBack;
   Uint8List? _idFrontBytes;
   Uint8List? _idBackBytes;
   final _picker = ImagePicker();
 
-  // ── Animation ────────────────────────────────────────────────────────────
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fade;
 
@@ -76,8 +70,6 @@ class _RegisterScreenState extends State<RegisterScreen>
     super.dispose();
   }
 
-  // ── Navigation helpers ────────────────────────────────────────────────────
-
   void _navigateByRole(UserRole role) {
     Widget dest;
     switch (role) {
@@ -102,11 +94,8 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
   }
 
-  // ── Step validation ───────────────────────────────────────────────────────
-
   bool _validateStep() {
     if (_step == 0) {
-      // Personal info
       if (_nameCtrl.text.trim().isEmpty ||
           _phoneCtrl.text.trim().isEmpty ||
           _addressCtrl.text.trim().isEmpty) {
@@ -121,26 +110,24 @@ class _RegisterScreenState extends State<RegisterScreen>
     }
 
     if (_step == 1) {
-      // Role + ID card for providers
-      if (_role == UserRole.serviceProvider) {
-        if (_serviceType == null) {
-          _showError('សូមជ្រើសរើសប្រភេទសេវាកម្ម');
-          return false;
-        }
-        if (_idFront == null) {
-          _showError('សូមបន្ថែមរូបថតខាងមុខអត្តសញ្ញាណប័ណ្ណ');
-          return false;
-        }
-        if (_idBack == null) {
-          _showError('សូមបន្ថែមរូបថតខាងក្រោយអត្តសញ្ញាណប័ណ្ណ');
-          return false;
-        }
+      // Service type required for providers only
+      if (_role == UserRole.serviceProvider && _serviceType == null) {
+        _showError('សូមជ្រើសរើសប្រភេទសេវាកម្ម');
+        return false;
+      }
+      // ID card required for ALL roles
+      if (_idFront == null) {
+        _showError('សូមបន្ថែមរូបថតខាងមុខអត្តសញ្ញាណប័ណ្ណ');
+        return false;
+      }
+      if (_idBack == null) {
+        _showError('សូមបន្ថែមរូបថតខាងក្រោយអត្តសញ្ញាណប័ណ្ណ');
+        return false;
       }
       return true;
     }
 
     if (_step == 2) {
-      // Security
       if (_emailCtrl.text.trim().isEmpty ||
           !_emailCtrl.text.contains('@')) {
         _showError('អ៊ីមែលមិនត្រឹមត្រូវ');
@@ -167,15 +154,17 @@ class _RegisterScreenState extends State<RegisterScreen>
             const Icon(Icons.warning_amber_rounded,
                 color: Colors.white, size: 20),
             const SizedBox(width: 10),
-            Expanded(child: Text(msg,
-                style: const TextStyle(fontFamily: 'KhmerOSBattambang'))),
+            Expanded(
+                child: Text(msg,
+                    style: const TextStyle(
+                        fontFamily: 'KhmerOSBattambang'))),
           ],
         ),
         backgroundColor: const Color(0xFFB71C1C),
         behavior: SnackBarBehavior.floating,
         margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12)),
       ),
     );
   }
@@ -184,7 +173,9 @@ class _RegisterScreenState extends State<RegisterScreen>
     HapticFeedback.lightImpact();
     if (!_validateStep()) return;
     if (_step < 2) {
+      _fadeCtrl.reset();
       setState(() => _step++);
+      _fadeCtrl.forward();
     } else {
       _handleRegister();
     }
@@ -192,7 +183,9 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   void _onBack() {
     if (_step > 0) {
+      _fadeCtrl.reset();
       setState(() => _step--);
+      _fadeCtrl.forward();
     } else {
       Navigator.pop(context);
     }
@@ -207,7 +200,8 @@ class _RegisterScreenState extends State<RegisterScreen>
       phoneNumber: _phoneCtrl.text.trim(),
       role: _role,
       address: _addressCtrl.text.trim(),
-      serviceType: _role == UserRole.serviceProvider ? _serviceType : null,
+      serviceType:
+          _role == UserRole.serviceProvider ? _serviceType : null,
       idCardFrontFile: _idFront,
       idCardBackFile: _idBack,
     );
@@ -218,8 +212,6 @@ class _RegisterScreenState extends State<RegisterScreen>
       _showError(err);
     }
   }
-
-  // ── Image picker ──────────────────────────────────────────────────────────
 
   Future<void> _pickImage(bool isFront) async {
     HapticFeedback.selectionClick();
@@ -246,15 +238,13 @@ class _RegisterScreenState extends State<RegisterScreen>
     });
   }
 
-  Future<ImageSource?> _showImageSourceSheet() async {
+  Future<ImageSource?> _showImageSourceSheet() {
     return showModalBottomSheet<ImageSource>(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (ctx) => _ImageSourceSheet(),
+      builder: (ctx) => const _ImageSourceSheet(),
     );
   }
-
-  // ── Build ─────────────────────────────────────────────────────────────────
 
   @override
   Widget build(BuildContext context) {
@@ -266,23 +256,18 @@ class _RegisterScreenState extends State<RegisterScreen>
       body: Stack(
         children: [
           BackgroundLayers(size: size),
-
           SafeArea(
             child: Column(
               children: [
-                // ── Top bar ────────────────────────────────────────────────
                 _buildTopBar(),
-
-                // ── Step indicator ─────────────────────────────────────────
                 _buildStepIndicator(),
-
-                // ── Step content ───────────────────────────────────────────
                 Expanded(
                   child: FadeTransition(
                     opacity: _fade,
                     child: SingleChildScrollView(
                       physics: const BouncingScrollPhysics(),
-                      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+                      padding:
+                          const EdgeInsets.fromLTRB(20, 16, 20, 32),
                       child: Form(
                         key: _formKey,
                         child: _buildCurrentStep(),
@@ -290,21 +275,15 @@ class _RegisterScreenState extends State<RegisterScreen>
                     ),
                   ),
                 ),
-
-                // ── Bottom action bar ──────────────────────────────────────
                 _buildActionBar(auth),
               ],
             ),
           ),
-
-          // ── Loading overlay with upload progress ───────────────────────
           if (auth.isLoading) _UploadOverlay(auth: auth),
         ],
       ),
     );
   }
-
-  // ── Top bar ───────────────────────────────────────────────────────────────
 
   Widget _buildTopBar() {
     return Padding(
@@ -332,8 +311,6 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
   }
 
-  // ── Step indicator ────────────────────────────────────────────────────────
-
   Widget _buildStepIndicator() {
     const steps = ['ព័ត៌មាន', 'តួនាទី', 'សម្ងាត់'];
     return Padding(
@@ -341,7 +318,6 @@ class _RegisterScreenState extends State<RegisterScreen>
       child: Row(
         children: List.generate(steps.length * 2 - 1, (i) {
           if (i.isOdd) {
-            // connector line
             final completed = (i ~/ 2) < _step;
             return Expanded(
               child: Container(
@@ -349,7 +325,10 @@ class _RegisterScreenState extends State<RegisterScreen>
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
                     colors: completed
-                        ? [const Color(0xFF66BB6A), const Color(0xFF43A047)]
+                        ? [
+                            const Color(0xFF66BB6A),
+                            const Color(0xFF43A047)
+                          ]
                         : [Colors.white12, Colors.white12],
                   ),
                 ),
@@ -381,8 +360,8 @@ class _RegisterScreenState extends State<RegisterScreen>
               boxShadow: isActive
                   ? [
                       BoxShadow(
-                        color:
-                            const Color(0xFF66BB6A).withOpacity(0.4),
+                        color: const Color(0xFF66BB6A)
+                            .withOpacity(0.4),
                         blurRadius: 12,
                       )
                     ]
@@ -390,13 +369,16 @@ class _RegisterScreenState extends State<RegisterScreen>
             ),
             child: Center(
               child: isDone
-                  ? const Icon(Icons.check, color: Colors.white, size: 16)
+                  ? const Icon(Icons.check,
+                      color: Colors.white, size: 16)
                   : Text(
                       '${stepIdx + 1}',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: isActive ? Colors.white : Colors.white38,
+                        color: isActive
+                            ? Colors.white
+                            : Colors.white38,
                       ),
                     ),
             ),
@@ -405,8 +387,6 @@ class _RegisterScreenState extends State<RegisterScreen>
       ),
     );
   }
-
-  // ── Current step content ──────────────────────────────────────────────────
 
   Widget _buildCurrentStep() {
     switch (_step) {
@@ -421,7 +401,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     }
   }
 
-  // ── STEP 1: Personal info ─────────────────────────────────────────────────
+  // ── STEP 1: Personal info ──────────────────────────────────────────────────
 
   Widget _buildStep1() {
     return _StepCard(
@@ -446,7 +426,9 @@ class _RegisterScreenState extends State<RegisterScreen>
             keyboardType: TextInputType.phone,
             validator: (v) {
               if (v == null || v.isEmpty) return 'សូមបញ្ចូលលេខទូរស័ព្ទ';
-              if (v.length < 9) return 'លេខទូរស័ព្ទត្រូវមានយ៉ាងហោចណាស់ ៩ ខ្ទង់';
+              if (v.length < 9) {
+                return 'លេខទូរស័ព្ទត្រូវមានយ៉ាងហោចណាស់ ៩ ខ្ទង់';
+              }
               return null;
             },
           ),
@@ -464,7 +446,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
   }
 
-  // ── STEP 2: Role selection + ID card upload ───────────────────────────────
+  // ── STEP 2: Role + ID card upload (ALL roles) ──────────────────────────────
 
   Widget _buildStep2() {
     return Column(
@@ -502,102 +484,68 @@ class _RegisterScreenState extends State<RegisterScreen>
           ),
         ),
 
-        // Service-provider extras
-        if (_role == UserRole.serviceProvider) ...[
-          const SizedBox(height: 16),
+        const SizedBox(height: 16),
+
+        // Service type — only for service providers
+        if (_role == UserRole.serviceProvider)
           _StepCard(
-            title: 'ព័ត៌មានសេវាកម្ម',
-            subtitle: 'ជ្រើសរើសប្រភេទ និងផ្ទៀងផ្ទាត់អត្តសញ្ញាណ',
-            icon: Icons.verified_user_outlined,
+            title: 'ប្រភេទសេវាកម្ម',
+            subtitle: 'ជ្រើសរើសសេវាដែលអ្នកផ្តល់',
+            icon: Icons.work_outline,
             accentColor: const Color(0xFFE65100),
-            child: Column(
-              children: [
-                // Service type dropdown
-                _buildServiceTypeDropdown(),
-                const SizedBox(height: 24),
-
-                // ID card section header
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFE65100).withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: const Icon(Icons.credit_card,
-                          color: Color(0xFFE65100), size: 18),
-                    ),
-                    const SizedBox(width: 10),
-                    const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'ផ្ទៀងផ្ទាត់អត្តសញ្ញាណប័ណ្ណ',
-                          style: TextStyle(
-                            fontFamily: 'KhmerOSBattambang',
-                            fontSize: 14,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                          ),
-                        ),
-                        Text(
-                          'ត្រូវតែបន្ថែមទាំងពីរខាង',
-                          style: TextStyle(
-                            fontFamily: 'KhmerOSBattambang',
-                            fontSize: 11,
-                            color: Color(0xFFFFB74D),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-
-                // Front + Back upload cards side by side
-                Row(
-                  children: [
-                    Expanded(
-                      child: _IdCardUploadTile(
-                        label: 'រូបថតខាងមុខ',
-                        sublabel: 'Front Side',
-                        emoji: '🪪',
-                        image: _idFront,
-                        imageBytes: _idFrontBytes,
-                        onTap: () => _pickImage(true),
-                        onDelete: () => setState(() {
-                          _idFront = null;
-                          _idFrontBytes = null;
-                        }),
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: _IdCardUploadTile(
-                        label: 'រូបថតខាងក្រោយ',
-                        sublabel: 'Back Side',
-                        emoji: '🪪',
-                        image: _idBack,
-                        imageBytes: _idBackBytes,
-                        onTap: () => _pickImage(false),
-                        onDelete: () => setState(() {
-                          _idBack = null;
-                          _idBackBytes = null;
-                        }),
-                        isBack: true,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-
-                // Status indicator
-                _buildIdCardStatus(),
-              ],
-            ),
+            child: _buildServiceTypeDropdown(),
           ),
-        ],
+
+        if (_role == UserRole.serviceProvider)
+          const SizedBox(height: 16),
+
+        // ID card upload — required for ALL roles
+        _StepCard(
+          title: 'ផ្ទៀងផ្ទាត់អត្តសញ្ញាណប័ណ្ណ',
+          subtitle: 'ត្រូវការទាំងពីរខាង · Required for all roles',
+          icon: Icons.credit_card_outlined,
+          accentColor: const Color(0xFF1565C0),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: _IdCardUploadTile(
+                      label: 'រូបថតខាងមុខ',
+                      sublabel: 'Front Side',
+                      emoji: '🪪',
+                      image: _idFront,
+                      imageBytes: _idFrontBytes,
+                      onTap: () => _pickImage(true),
+                      onDelete: () => setState(() {
+                        _idFront = null;
+                        _idFrontBytes = null;
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _IdCardUploadTile(
+                      label: 'រូបថតខាងក្រោយ',
+                      sublabel: 'Back Side',
+                      emoji: '🪪',
+                      image: _idBack,
+                      imageBytes: _idBackBytes,
+                      onTap: () => _pickImage(false),
+                      onDelete: () => setState(() {
+                        _idBack = null;
+                        _idBackBytes = null;
+                      }),
+                      isBack: true,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              _buildIdCardStatus(),
+            ],
+          ),
+        ),
       ],
     );
   }
@@ -607,25 +555,30 @@ class _RegisterScreenState extends State<RegisterScreen>
       initialValue: _serviceType,
       dropdownColor: const Color(0xFF1B3A20),
       style: const TextStyle(
-          fontFamily: 'KhmerOSBattambang', color: Colors.white, fontSize: 14),
+          fontFamily: 'KhmerOSBattambang',
+          color: Colors.white,
+          fontSize: 14),
       decoration: InputDecoration(
         hintText: 'ជ្រើសរើសប្រភេទសេវា',
         hintStyle: TextStyle(
-            color: Colors.white.withOpacity(0.3), fontSize: 13,
+            color: Colors.white.withOpacity(0.3),
+            fontSize: 13,
             fontFamily: 'KhmerOSBattambang'),
-        prefixIcon:
-            const Icon(Icons.category_outlined, color: Colors.white54, size: 20),
+        prefixIcon: const Icon(Icons.category_outlined,
+            color: Colors.white54, size: 20),
         filled: true,
         fillColor: Colors.white.withOpacity(0.08),
         contentPadding:
             const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
+          borderSide:
+              BorderSide(color: Colors.white.withOpacity(0.12)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
-          borderSide: BorderSide(color: Colors.white.withOpacity(0.12)),
+          borderSide:
+              BorderSide(color: Colors.white.withOpacity(0.12)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
@@ -649,16 +602,17 @@ class _RegisterScreenState extends State<RegisterScreen>
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 300),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      padding:
+          const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: allOk
             ? const Color(0xFF2E7D32).withOpacity(0.2)
-            : const Color(0xFFE65100).withOpacity(0.1),
+            : const Color(0xFF1565C0).withOpacity(0.1),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(
           color: allOk
               ? const Color(0xFF66BB6A).withOpacity(0.5)
-              : const Color(0xFFFFB74D).withOpacity(0.4),
+              : const Color(0xFF90CAF9).withOpacity(0.4),
         ),
       ),
       child: Row(
@@ -666,7 +620,9 @@ class _RegisterScreenState extends State<RegisterScreen>
           Icon(
             allOk ? Icons.verified_outlined : Icons.info_outline,
             size: 16,
-            color: allOk ? const Color(0xFF66BB6A) : const Color(0xFFFFB74D),
+            color: allOk
+                ? const Color(0xFF66BB6A)
+                : const Color(0xFF90CAF9),
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -683,7 +639,7 @@ class _RegisterScreenState extends State<RegisterScreen>
                 fontSize: 12,
                 color: allOk
                     ? const Color(0xFF66BB6A)
-                    : const Color(0xFFFFB74D),
+                    : const Color(0xFF90CAF9),
               ),
             ),
           ),
@@ -741,8 +697,9 @@ class _RegisterScreenState extends State<RegisterScreen>
                       fontFamily: 'KhmerOSBattambang',
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
-                      color:
-                          selected ? color : Colors.white.withOpacity(0.85),
+                      color: selected
+                          ? color
+                          : Colors.white.withOpacity(0.85),
                     ),
                   ),
                   const SizedBox(height: 3),
@@ -760,7 +717,8 @@ class _RegisterScreenState extends State<RegisterScreen>
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 200),
               child: selected
-                  ? Icon(Icons.check_circle, color: color, size: 22,
+                  ? Icon(Icons.check_circle,
+                      color: color, size: 22,
                       key: const ValueKey('checked'))
                   : Icon(Icons.circle_outlined,
                       color: Colors.white24, size: 22,
@@ -772,7 +730,7 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
   }
 
-  // ── STEP 3: Security ──────────────────────────────────────────────────────
+  // ── STEP 3: Security ───────────────────────────────────────────────────────
 
   Widget _buildStep3() {
     return _StepCard(
@@ -829,18 +787,20 @@ class _RegisterScreenState extends State<RegisterScreen>
                 color: Colors.white54,
                 size: 20,
               ),
-              onPressed: () =>
-                  setState(() => _obscureConfirm = !_obscureConfirm),
+              onPressed: () => setState(
+                  () => _obscureConfirm = !_obscureConfirm),
             ),
             validator: (v) {
-              if (v == null || v.isEmpty) return 'សូមបញ្ជាក់ពាក្យសម្ងាត់';
-              if (v != _passwordCtrl.text) return 'ពាក្យសម្ងាត់មិនដូចគ្នា';
+              if (v == null || v.isEmpty) {
+                return 'សូមបញ្ជាក់ពាក្យសម្ងាត់';
+              }
+              if (v != _passwordCtrl.text) {
+                return 'ពាក្យសម្ងាត់មិនដូចគ្នា';
+              }
               return null;
             },
           ),
           const SizedBox(height: 20),
-
-          // Summary
           _buildSummaryCard(),
         ],
       ),
@@ -879,11 +839,14 @@ class _RegisterScreenState extends State<RegisterScreen>
                     ? 'អ្នកផ្តល់សេវា'
                     : 'អ្នកគ្រប់គ្រង',
           ),
-          if (_role == UserRole.serviceProvider) ...[
+          if (_role == UserRole.serviceProvider)
             _summaryRow('🔧 សេវាកម្ម', _serviceType ?? '-'),
-            _summaryRow('🪪 អត្តសញ្ញាណប័ណ្ណ',
-                (_idFront != null && _idBack != null) ? 'បានបន្ថែម ✓' : 'មិនទាន់'),
-          ],
+          _summaryRow(
+            '🪪 អត្តសញ្ញាណប័ណ្ណ',
+            (_idFront != null && _idBack != null)
+                ? 'បានបន្ថែម ✓'
+                : 'មិនទាន់',
+          ),
         ],
       ),
     );
@@ -919,12 +882,11 @@ class _RegisterScreenState extends State<RegisterScreen>
         ),
       );
 
-  // ── Bottom action bar ─────────────────────────────────────────────────────
-
   Widget _buildActionBar(AuthProvider auth) {
     final bottomPadding = MediaQuery.of(context).padding.bottom;
     return Container(
-      padding: EdgeInsets.fromLTRB(20, 12, 20, 20 + bottomPadding),
+      padding:
+          EdgeInsets.fromLTRB(20, 12, 20, 20 + bottomPadding),
       decoration: BoxDecoration(
         color: const Color(0xFF0A1F0E),
         border: Border(
@@ -940,12 +902,15 @@ class _RegisterScreenState extends State<RegisterScreen>
                 onPressed: _onBack,
                 style: OutlinedButton.styleFrom(
                   foregroundColor: Colors.white70,
-                  side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                  side: BorderSide(
+                      color: Colors.white.withOpacity(0.2)),
                   shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(14)),
-                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 20),
                 ),
-                child: const Icon(Icons.arrow_back_ios_new, size: 16),
+                child: const Icon(Icons.arrow_back_ios_new,
+                    size: 16),
               ),
             ),
             const SizedBox(width: 12),
@@ -963,9 +928,7 @@ class _RegisterScreenState extends State<RegisterScreen>
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ID CARD UPLOAD TILE
-// ─────────────────────────────────────────────────────────────────────────────
+// ── ID Card Upload Tile ───────────────────────────────────────────────────────
 
 class _IdCardUploadTile extends StatelessWidget {
   final String label;
@@ -991,7 +954,6 @@ class _IdCardUploadTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final hasImage = image != null;
-
     return GestureDetector(
       onTap: hasImage ? null : onTap,
       child: AnimatedContainer(
@@ -1007,15 +969,12 @@ class _IdCardUploadTile extends StatelessWidget {
                 ? const Color(0xFF66BB6A).withOpacity(0.6)
                 : Colors.white.withOpacity(0.15),
             width: hasImage ? 1.8 : 1,
-            // Dashed effect via BoxBorder is not native; we simulate with
-            // a solid border + dashed look inside the empty state via CustomPaint.
           ),
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(15),
-          child: hasImage
-              ? _buildPreview()
-              : _buildPlaceholder(),
+          child:
+              hasImage ? _buildPreview() : _buildPlaceholder(),
         ),
       ),
     );
@@ -1025,13 +984,11 @@ class _IdCardUploadTile extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        // Image preview — uses Image.memory which works on both Web and Mobile
         Image.memory(
           imageBytes!,
           fit: BoxFit.cover,
           gaplessPlayback: true,
         ),
-        // Dark scrim at bottom
         Positioned(
           bottom: 0,
           left: 0,
@@ -1057,7 +1014,6 @@ class _IdCardUploadTile extends StatelessWidget {
                     fontWeight: FontWeight.w600,
                   ),
                 ),
-                // Retake / delete button
                 GestureDetector(
                   onTap: onDelete,
                   child: Container(
@@ -1074,7 +1030,6 @@ class _IdCardUploadTile extends StatelessWidget {
             ),
           ),
         ),
-        // Success badge top-right
         const Positioned(
           top: 6,
           right: 6,
@@ -1097,14 +1052,14 @@ class _IdCardUploadTile extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: const Color(0xFFE65100).withOpacity(0.12),
+              color: const Color(0xFF1565C0).withOpacity(0.12),
               shape: BoxShape.circle,
             ),
             child: Icon(
               isBack
                   ? Icons.flip_to_back_outlined
                   : Icons.flip_to_front_outlined,
-              color: const Color(0xFFFFB74D),
+              color: const Color(0xFF90CAF9),
               size: 24,
             ),
           ),
@@ -1130,20 +1085,20 @@ class _IdCardUploadTile extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: const Color(0xFFE65100).withOpacity(0.15),
+              color: const Color(0xFF1565C0).withOpacity(0.15),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                  color: const Color(0xFFFFB74D).withOpacity(0.4)),
+                  color: const Color(0xFF90CAF9).withOpacity(0.4)),
             ),
             child: const Text(
               '+ បន្ថែម',
               style: TextStyle(
                 fontFamily: 'KhmerOSBattambang',
                 fontSize: 10,
-                color: Color(0xFFFFB74D),
+                color: Color(0xFF90CAF9),
                 fontWeight: FontWeight.w600,
               ),
             ),
@@ -1164,11 +1119,10 @@ class _DashedBorderPainter extends CustomPainter {
 
     const dash = 6.0;
     const gap = 4.0;
-    final radius = Radius.circular(15);
+    const radius = Radius.circular(15);
     final rrect = RRect.fromRectAndRadius(
         Rect.fromLTWH(0, 0, size.width, size.height), radius);
     final path = Path()..addRRect(rrect);
-
     final metric = path.computeMetrics().first;
     double dist = 0;
     while (dist < metric.length) {
@@ -1181,9 +1135,7 @@ class _DashedBorderPainter extends CustomPainter {
   bool shouldRepaint(covariant CustomPainter old) => false;
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// IMAGE SOURCE BOTTOM SHEET
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Image Source Sheet ────────────────────────────────────────────────────────
 
 class _ImageSourceSheet extends StatelessWidget {
   const _ImageSourceSheet();
@@ -1195,8 +1147,7 @@ class _ImageSourceSheet extends StatelessWidget {
       decoration: BoxDecoration(
         color: const Color(0xFF1B3A20),
         borderRadius: BorderRadius.circular(20),
-        border:
-            Border.all(color: Colors.white.withOpacity(0.1)),
+        border: Border.all(color: Colors.white.withOpacity(0.1)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1226,16 +1177,21 @@ class _ImageSourceSheet extends StatelessWidget {
             label: 'ថតរូបភ្លាម',
             sublabel: 'Camera',
             color: const Color(0xFF29B6F6),
-            onTap: () => Navigator.pop(context, ImageSource.camera),
+            onTap: () =>
+                Navigator.pop(context, ImageSource.camera),
           ),
           const Divider(
-              height: 1, indent: 20, endIndent: 20, color: Colors.white10),
+              height: 1,
+              indent: 20,
+              endIndent: 20,
+              color: Colors.white10),
           _SourceTile(
             icon: Icons.photo_library_outlined,
             label: 'ជ្រើសពីឯកសាររូបថត',
             sublabel: 'Gallery',
             color: const Color(0xFF66BB6A),
-            onTap: () => Navigator.pop(context, ImageSource.gallery),
+            onTap: () =>
+                Navigator.pop(context, ImageSource.gallery),
           ),
           const SizedBox(height: 12),
           TextButton(
@@ -1276,7 +1232,8 @@ class _SourceTile extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+        padding: const EdgeInsets.symmetric(
+            horizontal: 20, vertical: 14),
         child: Row(
           children: [
             Container(
@@ -1312,7 +1269,8 @@ class _SourceTile extends StatelessWidget {
             ),
             const Spacer(),
             Icon(Icons.arrow_forward_ios,
-                size: 14, color: Colors.white.withOpacity(0.25)),
+                size: 14,
+                color: Colors.white.withOpacity(0.25)),
           ],
         ),
       ),
@@ -1320,9 +1278,7 @@ class _SourceTile extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// UPLOAD PROGRESS OVERLAY  (replaces simple _LoadingOverlay during register)
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Upload Progress Overlay ───────────────────────────────────────────────────
 
 class _UploadOverlay extends StatelessWidget {
   final AuthProvider auth;
@@ -1341,18 +1297,21 @@ class _UploadOverlay extends StatelessWidget {
             decoration: BoxDecoration(
               color: const Color(0xFF1B3A20),
               borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: Colors.white.withOpacity(0.1)),
+              border:
+                  Border.all(color: Colors.white.withOpacity(0.1)),
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // Animated logo
                 Container(
                   width: 64,
                   height: 64,
                   decoration: BoxDecoration(
                     gradient: const LinearGradient(
-                      colors: [Color(0xFF4CAF50), Color(0xFF1B5E20)],
+                      colors: [
+                        Color(0xFF4CAF50),
+                        Color(0xFF1B5E20)
+                      ],
                       begin: Alignment.topLeft,
                       end: Alignment.bottomRight,
                     ),
@@ -1362,7 +1321,6 @@ class _UploadOverlay extends StatelessWidget {
                       color: Colors.white, size: 32),
                 ),
                 const SizedBox(height: 20),
-
                 Text(
                   auth.uploadStatus.isNotEmpty
                       ? auth.uploadStatus
@@ -1375,8 +1333,6 @@ class _UploadOverlay extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 16),
-
-                // Progress bar
                 ClipRRect(
                   borderRadius: BorderRadius.circular(8),
                   child: LinearProgressIndicator(
@@ -1390,7 +1346,6 @@ class _UploadOverlay extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 10),
-
                 if (auth.uploadProgress > 0)
                   Text(
                     '${(auth.uploadProgress * 100).toStringAsFixed(0)}%',
@@ -1409,9 +1364,7 @@ class _UploadOverlay extends StatelessWidget {
   }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// STEP CARD — glassmorphic container for each step's content
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Step Card ─────────────────────────────────────────────────────────────────
 
 class _StepCard extends StatelessWidget {
   final String title;
@@ -1445,7 +1398,6 @@ class _StepCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Card header
               Row(
                 children: [
                   Container(

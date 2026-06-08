@@ -6,13 +6,13 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'providers/app_provider.dart';
 import 'providers/auth_provider.dart';
+import 'providers/chat_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'theme/app_theme.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase (required before any FirebaseAuth/Firestore usage)
   try {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
@@ -21,16 +21,13 @@ void main() async {
     debugPrint('Firebase init failed: $e');
   }
 
-  // Lock orientation to portrait for mobile-first design
   SystemChrome.setPreferredOrientations([
     DeviceOrientation.portraitUp,
     DeviceOrientation.portraitDown,
   ]);
 
-  // Edge-to-edge: show native status bar and navigation bar
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
 
-  // Transparent backgrounds so native bars blend with the app
   SystemChrome.setSystemUIOverlayStyle(const SystemUiOverlayStyle(
     statusBarColor: Colors.transparent,
     statusBarIconBrightness: Brightness.dark,
@@ -50,6 +47,8 @@ class AgriLogisticsApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => AppProvider()),
+        // NEW: ChatProvider added
+        ChangeNotifierProvider(create: (_) => ChatProvider()),
       ],
       child: MaterialApp(
         title: 'ប្រព័ន្ធដឹកជញ្ជូនកសិកម្ម — បន្ទាយមានជ័យ',

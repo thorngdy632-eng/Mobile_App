@@ -3,9 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/app_provider.dart';
+import '../../providers/chat_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../auth/login_screen.dart';
+import '../chat/admin_chat_list_screen.dart';
+import '../profile/edit_profile_screen.dart';
+import 'user_list_screen.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -21,14 +25,28 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.currentUser;
+    final myUid = user?.uid ?? '';
 
     return Scaffold(
       backgroundColor: AppTheme.bgLight,
       appBar: AppBar(
-        title: const Text('អ្នកគ្រប់គ្រង'),
+        title: Text(_appBarTitle),
+        backgroundColor: AppTheme.adminBlue,
         actions: [
+          // Profile button
           IconButton(
-            icon: const Icon(Icons.logout),
+            icon: const Icon(Icons.person_outline, color: Colors.white),
+            tooltip: 'ព័ត៌មានគណនី',
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => const EditProfileScreen()),
+            ).then((_) {
+              context.read<AuthProvider>().refreshProfile();
+            }),
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
             tooltip: 'ចេញ',
             onPressed: () async {
               await auth.logout();
@@ -43,39 +61,105 @@ class _AdminDashboardState extends State<AdminDashboard> {
         ],
       ),
       body: SafeArea(
-        child: _currentIndex == 0
-            ? _buildDashboard(user)
-            : _currentIndex == 1
-                ? _buildJobsTab()
-                : _buildSettings(),
+        child: IndexedStack(
+          index: _currentIndex,
+          children: [
+            _buildDashboard(user),
+            _buildJobsTab(),
+            const UserListScreen(),
+            const AdminChatListScreen(),
+            _buildSettings(),
+          ],
+        ),
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _currentIndex,
-        onTap: (i) => setState(() => _currentIndex = i),
-        selectedItemColor: AppTheme.adminBlue,
-        unselectedItemColor: AppTheme.textSecondary,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.dashboard_outlined),
-            activeIcon: Icon(Icons.dashboard),
-            label: 'ផ្ទាំងគ្រប់គ្រង',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assignment_outlined),
-            activeIcon: Icon(Icons.assignment),
-            label: 'ការស្នើសុំ',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings_outlined),
-            activeIcon: Icon(Icons.settings),
-            label: 'ការកំណត់',
-          ),
-        ],
+      bottomNavigationBar: StreamBuilder<int>(
+        stream: context.read<ChatProvider>().totalUnreadStream(myUid),
+        builder: (context, snap) {
+          final unread = snap.data ?? 0;
+          return BottomNavigationBar(
+            currentIndex: _currentIndex,
+            onTap: (i) => setState(() => _currentIndex = i),
+            selectedItemColor: AppTheme.adminBlue,
+            unselectedItemColor: AppTheme.textSecondary,
+            type: BottomNavigationBarType.fixed,
+            items: [
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.dashboard_outlined),
+                activeIcon: Icon(Icons.dashboard),
+                label: 'ផ្ទាំងគ្រប់គ្រង',
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.assignment_outlined),
+                activeIcon: Icon(Icons.assignment),
+                label: 'ការស្នើសុំ',
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.people_outline),
+                activeIcon: Icon(Icons.people),
+                label: 'អ្នកប្រើប្រាស់',
+              ),
+              BottomNavigationBarItem(
+                icon: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    const Icon(Icons.chat_bubble_outline),
+                    if (unread > 0)
+                      Positioned(
+                        top: -4,
+                        right: -4,
+                        child: Container(
+                          width: 14,
+                          height: 14,
+                          decoration: const BoxDecoration(
+                            color: AppTheme.errorRed,
+                            shape: BoxShape.circle,
+                          ),
+                          child: Center(
+                            child: Text(
+                              unread > 9 ? '9+' : '$unread',
+                              style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                activeIcon: const Icon(Icons.chat_bubble),
+                label: 'ការសន្ទនា',
+              ),
+              const BottomNavigationBarItem(
+                icon: Icon(Icons.settings_outlined),
+                activeIcon: Icon(Icons.settings),
+                label: 'ការកំណត់',
+              ),
+            ],
+          );
+        },
       ),
     );
   }
 
-  // ── Dashboard tab — stats from live AppProvider ───────────────────────────
+  String get _appBarTitle {
+    switch (_currentIndex) {
+      case 0:
+        return 'អ្នកគ្រប់គ្រង';
+      case 1:
+        return 'ការស្នើសុំ';
+      case 2:
+        return 'អ្នកប្រើប្រាស់';
+      case 3:
+        return 'ការសន្ទនា';
+      case 4:
+        return 'ការកំណត់';
+      default:
+        return 'អ្នកគ្រប់គ្រង';
+    }
+  }
+
+  // ── Dashboard tab ─────────────────────────────────────────────────────────
 
   Widget _buildDashboard(dynamic user) {
     return Consumer<AppProvider>(
@@ -130,7 +214,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          // Real name from Firestore via AuthProvider
                           Text(
                             'ស្វាគមន៍, ${user?.fullName ?? 'អ្នកគ្រប់គ្រង'}',
                             style: const TextStyle(
@@ -155,7 +238,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               ),
               const SizedBox(height: 20),
 
-              // Live stats — from AppProvider (real Firestore data)
+              // Stats
               const Text(
                 'ស្ថិតិជាក់ស្ដែង',
                 style: TextStyle(
@@ -166,11 +249,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
               const SizedBox(height: 12),
               Row(
                 children: [
-                  _buildStatCard(
-                      '🚜', 'ការស្នើសុំត្រាក់ទ័រ', '$totalTractor', AppTheme.farmerGreen),
+                  _buildStatCard('🚜', 'ការស្នើសុំត្រាក់ទ័រ',
+                      '$totalTractor', AppTheme.farmerGreen),
                   const SizedBox(width: 12),
-                  _buildStatCard(
-                      '🛸', 'ការស្នើសុំដ្រូន', '$totalDrone', AppTheme.adminBlue),
+                  _buildStatCard('🛸', 'ការស្នើសុំដ្រូន',
+                      '$totalDrone', AppTheme.adminBlue),
                 ],
               ),
               const SizedBox(height: 12),
@@ -180,15 +263,51 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       '⏳', 'កំពុងរង់ចាំ', '$pendingCount', AppTheme.accentGold),
                   const SizedBox(width: 12),
                   _buildStatCard(
-                      '✅',
-                      'បានបញ្ជាក់',
-                      '${appProv.tractorJobs.where((j) => j.status == 'confirmed').length + appProv.droneJobs.where((j) => j.status == 'confirmed').length}',
-                      AppTheme.primaryGreen),
+                    '✅',
+                    'បានបញ្ជាក់',
+                    '${appProv.tractorJobs.where((j) => j.status == 'confirmed').length + appProv.droneJobs.where((j) => j.status == 'confirmed').length}',
+                    AppTheme.primaryGreen,
+                  ),
                 ],
               ),
               const SizedBox(height: 24),
 
-              // Pending tractor requests
+              // Quick actions
+              const Text(
+                'ដំណើរការរហ័ស',
+                style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w700,
+                    color: AppTheme.textPrimary),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _buildQuickAction(
+                    icon: Icons.people_outline,
+                    label: 'អ្នកប្រើប្រាស់',
+                    color: AppTheme.adminBlue,
+                    onTap: () => setState(() => _currentIndex = 2),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildQuickAction(
+                    icon: Icons.chat_bubble_outline,
+                    label: 'ការសន្ទនា',
+                    color: AppTheme.providerOrange,
+                    onTap: () => setState(() => _currentIndex = 3),
+                  ),
+                  const SizedBox(width: 12),
+                  _buildQuickAction(
+                    icon: Icons.assignment_outlined,
+                    label: 'ការស្នើសុំ',
+                    color: AppTheme.farmerGreen,
+                    onTap: () => setState(() => _currentIndex = 1),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Pending jobs
               if (appProv.pendingTractorJobs.isNotEmpty) ...[
                 _buildSectionHeader('🚜 ការស្នើសុំត្រាក់ទ័រ — រង់ចាំ'),
                 const SizedBox(height: 8),
@@ -208,7 +327,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 const SizedBox(height: 8),
               ],
 
-              // Pending drone requests
               if (appProv.pendingDroneJobs.isNotEmpty) ...[
                 _buildSectionHeader('🛸 ការស្នើសុំដ្រូន — រង់ចាំ'),
                 const SizedBox(height: 8),
@@ -257,7 +375,41 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  // ── All Jobs tab ──────────────────────────────────────────────────────────
+  Widget _buildQuickAction({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            color: color.withOpacity(0.08),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withOpacity(0.2)),
+          ),
+          child: Column(
+            children: [
+              Icon(icon, color: color, size: 26),
+              const SizedBox(height: 6),
+              Text(
+                label,
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: color),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Jobs tab ──────────────────────────────────────────────────────────────
 
   Widget _buildJobsTab() {
     return Consumer<AppProvider>(
@@ -278,7 +430,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
               Expanded(
                 child: TabBarView(
                   children: [
-                    // Tractor jobs
                     appProv.tractorJobs.isEmpty
                         ? const Center(child: Text('មិនទាន់មានការស្នើសុំ'))
                         : ListView.builder(
@@ -287,7 +438,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             itemBuilder: (ctx, i) => _buildTractorJobCard(
                                 ctx, appProv, appProv.tractorJobs[i]),
                           ),
-                    // Drone jobs
                     appProv.droneJobs.isEmpty
                         ? const Center(child: Text('មិនទាន់មានការស្នើសុំ'))
                         : ListView.builder(
@@ -305,8 +455,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
       },
     );
   }
-
-  // ── Job cards with admin action buttons ───────────────────────────────────
 
   Widget _buildTractorJobCard(
       BuildContext context, AppProvider appProv, TractorJob job) {
@@ -346,28 +494,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ],
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: job.statusColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: job.statusColor.withOpacity(0.4)),
-                ),
-                child: Text(job.statusLabel,
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: job.statusColor)),
-              ),
+              _statusBadge(job.statusLabel, job.statusColor),
             ],
           ),
           const SizedBox(height: 8),
           _infoRow(Icons.location_on_outlined, job.location),
           _infoRow(Icons.calendar_today_outlined,
               '${job.scheduledDate} • ${job.scheduledTime}'),
-          _infoRow(Icons.crop_square_outlined,
-              '${job.areaHectares} ហិចតា'),
+          _infoRow(Icons.crop_square_outlined, '${job.areaHectares} ហិចតា'),
           if (job.notes?.isNotEmpty == true)
             _infoRow(Icons.notes_outlined, job.notes!),
           if (job.status == 'pending') ...[
@@ -379,8 +513,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     style: OutlinedButton.styleFrom(
                         foregroundColor: Colors.red,
                         side: const BorderSide(color: Colors.red)),
-                    onPressed: () => appProv.updateTractorJobStatus(
-                        job.id, 'cancelled'),
+                    onPressed: () =>
+                        appProv.updateTractorJobStatus(job.id, 'cancelled'),
                     child: const Text('បោះបង់'),
                   ),
                 ),
@@ -389,8 +523,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                         backgroundColor: AppTheme.primaryGreen),
-                    onPressed: () => appProv.updateTractorJobStatus(
-                        job.id, 'confirmed'),
+                    onPressed: () =>
+                        appProv.updateTractorJobStatus(job.id, 'confirmed'),
                     child: const Text('បញ្ជាក់',
                         style: TextStyle(color: Colors.white)),
                   ),
@@ -441,28 +575,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ],
                 ),
               ),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: job.statusColor.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: job.statusColor.withOpacity(0.4)),
-                ),
-                child: Text(job.statusLabel,
-                    style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: job.statusColor)),
-              ),
+              _statusBadge(job.statusLabel, job.statusColor),
             ],
           ),
           const SizedBox(height: 8),
           _infoRow(Icons.location_on_outlined, job.location),
           _infoRow(Icons.calendar_today_outlined,
               '${job.scheduledDate} • ${job.scheduledTime}'),
-          _infoRow(Icons.crop_square_outlined,
-              '${job.areaHectares} ហិចតា'),
+          _infoRow(Icons.crop_square_outlined, '${job.areaHectares} ហិចតា'),
           if (job.notes?.isNotEmpty == true)
             _infoRow(Icons.notes_outlined, job.notes!),
           if (job.status == 'pending') ...[
@@ -498,18 +618,50 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  // ── Settings tab ─────────────────────────────────────────────────────────
+  // ── Settings tab ──────────────────────────────────────────────────────────
 
   Widget _buildSettings() {
+    final auth = context.read<AuthProvider>();
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildSettingsTile(Icons.person_outline, 'ព័ត៌មានគណនី', 'មើល និងកែប្រែព័ត៌មាន'),
         _buildSettingsTile(
-            Icons.notifications_outlined, 'ការជូនដំណឹង', 'គ្រប់គ្រងការជូនដំណឹង'),
+          Icons.person_outline,
+          'ព័ត៌មានគណនី',
+          'មើល និងកែប្រែព័ត៌មាន',
+          onTap: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const EditProfileScreen())).then((_) {
+            context.read<AuthProvider>().refreshProfile();
+          }),
+        ),
+        _buildSettingsTile(
+            Icons.notifications_outlined,
+            'ការជូនដំណឹង',
+            'គ្រប់គ្រងការជូនដំណឹង'),
         _buildSettingsTile(Icons.language_outlined, 'ភាសា', 'ខ្មែរ'),
         _buildSettingsTile(Icons.help_outline, 'ជំនួយ', 'មើលសំណួរញឹកញាប់'),
         _buildSettingsTile(Icons.info_outline, 'អំពីកម្មវិធី', 'Dorne v1.0.0'),
+        const SizedBox(height: 16),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.logout, color: AppTheme.errorRed),
+          label: const Text('ចេញពីគណនី',
+              style: TextStyle(color: AppTheme.errorRed)),
+          style: OutlinedButton.styleFrom(
+            side: const BorderSide(color: AppTheme.errorRed),
+            minimumSize: const Size(double.infinity, 50),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12)),
+          ),
+          onPressed: () async {
+            await auth.logout();
+            if (context.mounted) {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(builder: (_) => const LoginScreen()),
+                (route) => false,
+              );
+            }
+          },
+        ),
       ],
     );
   }
@@ -517,12 +669,24 @@ class _AdminDashboardState extends State<AdminDashboard> {
   // ── Helpers ───────────────────────────────────────────────────────────────
 
   Widget _buildSectionHeader(String text) {
-    return Text(
-      text,
-      style: const TextStyle(
-          fontSize: 15,
-          fontWeight: FontWeight.w700,
-          color: AppTheme.textPrimary),
+    return Text(text,
+        style: const TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w700,
+            color: AppTheme.textPrimary));
+  }
+
+  Widget _statusBadge(String label, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.4)),
+      ),
+      child: Text(label,
+          style: TextStyle(
+              fontSize: 11, fontWeight: FontWeight.w600, color: color)),
     );
   }
 
@@ -580,17 +744,20 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildSettingsTile(IconData icon, String title, String subtitle) {
+  Widget _buildSettingsTile(IconData icon, String title, String subtitle,
+      {VoidCallback? onTap}) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       child: ListTile(
         leading: Icon(icon, color: AppTheme.adminBlue),
         title: Text(title),
-        subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
+        subtitle:
+            Text(subtitle, style: const TextStyle(fontSize: 12)),
         trailing: const Icon(Icons.chevron_right),
-        shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12)),
         tileColor: Colors.white,
+        onTap: onTap,
       ),
     );
   }

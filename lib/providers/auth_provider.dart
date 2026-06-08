@@ -12,13 +12,15 @@ class AuthProvider extends ChangeNotifier {
 
   UserModel? _currentUser;
   bool _isLoading = false;
+  bool _isInitializing = true;
   String? _error;
   double _uploadProgress = 0.0;
   String _uploadStatus = '';
 
   UserModel? get currentUser => _currentUser;
-  UserModel? get user => _currentUser; // alias សម្រាប់កូដចាស់ៗហៅប្រើ
+  UserModel? get user => _currentUser;
   bool get isLoading => _isLoading;
+  bool get isInitializing => _isInitializing;
   String? get error => _error;
   bool get isLoggedIn => _currentUser != null;
   double get uploadProgress => _uploadProgress;
@@ -33,10 +35,13 @@ class AuthProvider extends ChangeNotifier {
   Future<void> _onAuthStateChanged(User? firebaseUser) async {
     if (firebaseUser == null) {
       _currentUser = null;
+      _isInitializing = false;
       notifyListeners();
       return;
     }
     await _fetchUserProfile(firebaseUser.uid);
+    _isInitializing = false;
+    notifyListeners();
   }
 
   Future<void> _fetchUserProfile(String uid) async {
@@ -198,6 +203,15 @@ class AuthProvider extends ChangeNotifier {
     await _auth.signOut();
     _currentUser = null;
     notifyListeners();
+  }
+
+  // ── Refresh profile from Firestore ────────────────────────────────────────
+
+  Future<void> refreshProfile() async {
+    final uid = _auth.currentUser?.uid;
+    if (uid != null) {
+      await _fetchUserProfile(uid);
+    }
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────
