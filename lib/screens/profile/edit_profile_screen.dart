@@ -23,7 +23,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _phoneCtrl;
   late final TextEditingController _addressCtrl;
 
-  XFile? _pickedImage;
   Uint8List? _imageBytes;
   bool _saving = false;
   final _picker = ImagePicker();
@@ -60,7 +59,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
     final bytes = await picked.readAsBytes();
     setState(() {
-      _pickedImage = picked;
       _imageBytes = bytes;
     });
   }

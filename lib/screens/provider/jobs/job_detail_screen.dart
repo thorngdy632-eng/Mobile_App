@@ -1,8 +1,7 @@
 // lib/screens/job_detail_screen.dart
 import 'package:flutter/material.dart';
-import '../../models/scheduled_job.dart';
-import '../../theme/app_theme.dart';
-import '../../theme/app_colors.dart';
+import '../../../models/scheduled_job.dart';
+import '../../../theme/app_colors.dart';
 
 // No import of android_nav_bar or android_status_bar — both files are deleted.
 

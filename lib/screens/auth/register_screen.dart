@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
+import '../../models/service_request.dart' show ServiceTypes;
 import '../admin/admin_dashboard.dart';
 import '../farmer/farmer_home.dart';
 import '../provider/provider_home.dart';
@@ -44,10 +45,11 @@ class _RegisterScreenState extends State<RegisterScreen>
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fade;
 
-  final List<String> _serviceTypes = [
-    'ម៉ាស៊ីនស្ទូច', 'ម៉ាស៊ីនដាំ', 'ម៉ាស៊ីនបូម',
-    'រថយន្តដឹក', 'គ្រឿងសសៃ', 'សសៃបូម', 'ម៉ាស៊ីនកៀរ', 'សេវាផ្សេងៗ',
-  ];
+  // IMPORTANT: values used in the dropdown below must be the canonical
+  // ServiceTypes ids (e.g. 'plowing'), NOT free-text Khmer labels.
+  // ServiceRequest.serviceType (submitted by Farmers on the map) is always
+  // one of these ids, so a provider's saved serviceType has to use the same
+  // id or AppProvider.pendingServiceRequestsForProvider() will never match.
 
   @override
   void initState() {
@@ -642,8 +644,11 @@ class _RegisterScreenState extends State<RegisterScreen>
       ),
       icon: const Icon(Icons.keyboard_arrow_down,
           color: Colors.white54, size: 20),
-      items: _serviceTypes
-          .map((t) => DropdownMenuItem(value: t, child: Text(t)))
+      items: ServiceTypes.all
+          .map((s) => DropdownMenuItem(
+                value: s['id'] as String,
+                child: Text(s['label'] as String),
+              ))
           .toList(),
       onChanged: (v) => setState(() => _serviceType = v),
     );
@@ -894,7 +899,8 @@ class _RegisterScreenState extends State<RegisterScreen>
                     : 'អ្នកគ្រប់គ្រង',
           ),
           if (_role == UserRole.serviceProvider)
-            _summaryRow('🔧 សេវាកម្ម', _serviceType ?? '-'),
+            _summaryRow('🔧 សេវាកម្ម',
+                _serviceType != null ? ServiceTypes.labelOf(_serviceType!) : '-'),
           _summaryRow(
             '🪪 អត្តសញ្ញាណប័ណ្ណ',
             (_idFront != null && _idBack != null)

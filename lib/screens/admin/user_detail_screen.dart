@@ -6,6 +6,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../models/chat_message.dart';
 import '../../models/user_model.dart';
+import '../../models/service_request.dart' show ServiceTypes;
 import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
@@ -167,7 +168,7 @@ class UserDetailScreen extends StatelessWidget {
                         _InfoRow(
                             icon: Icons.work_outline,
                             label: 'ប្រភេទសេវា',
-                            value: user.serviceType!),
+                            value: ServiceTypes.labelOf(user.serviceType!)),
                       _InfoRow(
                           icon: Icons.calendar_today_outlined,
                           label: 'ចុះឈ្មោះ',

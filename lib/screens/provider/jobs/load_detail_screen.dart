@@ -1,8 +1,7 @@
 // lib/screens/load_detail_screen.dart
 import 'package:flutter/material.dart';
-import '../../models/backhaul_load.dart';
-import '../../theme/app_theme.dart';
-import '../../theme/app_colors.dart';
+import '../../../models/backhaul_load.dart';
+import '../../../theme/app_colors.dart';
 
 class LoadDetailScreen extends StatefulWidget {
   final BackhaulLoad load;

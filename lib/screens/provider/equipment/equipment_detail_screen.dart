@@ -1,8 +1,7 @@
 // lib/screens/equipment_detail_screen.dart
 import 'package:flutter/material.dart';
-import '../../models/equipment_item.dart';
-import '../../theme/app_theme.dart';
-import '../../theme/app_colors.dart';
+import '../../../models/equipment_item.dart';
+import '../../../theme/app_colors.dart';
 
 class EquipmentDetailScreen extends StatefulWidget {
   final EquipmentItem item;
@@ -126,7 +125,7 @@ class _EquipmentDetailScreenState extends State<EquipmentDetailScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         const Text('តម្លៃសរុប:', style: TextStyle(fontSize: 15)),
-                        Text('\$${_total.toStringAsFixed(0)}',
+                        Text('${_total.toStringAsFixed(0)} រៀល',
                             style: const TextStyle(
                               fontSize: 22, fontWeight: FontWeight.bold, color: AppColors.primaryGreen)),
                       ],

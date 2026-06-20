@@ -1,7 +1,6 @@
 // lib/screens/notifications_screen.dart
 import 'package:flutter/material.dart';
-import '../../theme/app_theme.dart';
-import '../../theme/app_colors.dart';
+import '../../../theme/app_colors.dart';
 class NotificationsScreen extends StatelessWidget {
   const NotificationsScreen({super.key});
 
@@ -17,7 +16,7 @@ class NotificationsScreen extends StatelessWidget {
       icon: Icons.local_shipping_outlined,
       iconColor: AppColors.primaryMid,
       title: 'ការដឹកថ្មី',
-      body: 'មានការដឹកថ្មី: ជីពី ក្រុងសិរីសោភ័ណ ទៅ ស្រុកមង្គលបូរី (\$80)',
+      body: 'មានការដឹកថ្មី: ជីពី ក្រុងសិរីសោភ័ណ ទៅ ស្រុកមង្គលបូរី (80,000រៀល)',
       time: '30 នាទីមុន',
     ),
     _Notification(

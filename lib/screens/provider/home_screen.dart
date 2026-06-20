@@ -3,28 +3,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/app_provider.dart';
-import '../../theme/app_theme.dart';
-import '../../widgets/job_card.dart';
-import '../../widgets/backhaul_card.dart';
-import 'notifications_screen.dart';
-import 'job_detail_screen.dart';
-import 'load_detail_screen.dart';
-import 'all_jobs_screen.dart';
-import 'drawer_menu.dart';
-import 'equipment_detail_screen.dart';
-import '../../models/equipment_item.dart';
 import '../../theme/app_colors.dart';
+import '../../widgets/job_card.dart';
+import 'notifications/notifications_screen.dart';
+import 'jobs/job_detail_screen.dart';
+import 'jobs/all_jobs_screen.dart';
+import 'widgets/drawer_menu.dart';
+import 'equipment/equipment_detail_screen.dart';
+import '../../models/equipment_item.dart';
 
 // ─── Static data for sections not yet in the provider ────────────────────────
-
-// បញ្ជីប្រភេទសេវាកម្មថ្មីជាមួយ Emoji 
-const List<_CategoryItem> _categories = [
-  _CategoryItem(icon: '🚜', label: 'ត្រាក់ទ័រ',   bg: Color(0xFF4CAF50)), 
-  _CategoryItem(icon: '🌾', label: 'ច្រូតស្រូវ',   bg: Color(0xFF81C784)), 
-  _CategoryItem(icon: '🛸', label: 'ដ្រូន',       bg: Color(0xFF29B6F6)), 
-  _CategoryItem(icon: '🛠', label: 'គោយន្ត',     bg: Color(0xFFFFB74D)), 
-  _CategoryItem(icon: '💨', label: 'បាញ់ថ្នាំ',    bg: Color(0xFFEF5350)), 
-];
 
 const List<_PromoItem> _promos = [
   _PromoItem(
@@ -44,7 +32,7 @@ const List<_PromoItem> _promos = [
 final List<EquipmentItem> _equipment = [
   const EquipmentItem(
     name: 'គ្រឿង Kubota L3408',
-    price: '\$45',
+    price: '180,000រៀល',
     location: 'ស្រុកបាទី',
     rating: 4.9,
     imageAsset: 'tractor', // 👈 ប្រើប្រាស់សម្រាប់រើសពណ៌ និងរូបភាពកាត
@@ -52,7 +40,7 @@ final List<EquipmentItem> _equipment = [
   ),
   const EquipmentItem(
     name: 'យន្តហោះ Yanmar YT3',
-    price: '\$30',
+    price: '120,000រៀល',
     location: 'ក្រុងសិរីស្វាយប៉ាវ',
     rating: 4.7,
     imageAsset: 'harvester', // 👈 ប្រើប្រាស់សម្រាប់រើសពណ៌ និងរូបភាពកាត
@@ -71,7 +59,6 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-  int _bottomIndex = 0;
   int _promoPage = 0;
   final PageController _promoCtrl = PageController();
 
@@ -94,17 +81,13 @@ class _HomeScreenState extends State<HomeScreen> {
       key: _scaffoldKey,
       drawer: const AppDrawer(),
       backgroundColor: AppColors.background,
-      bottomNavigationBar: _buildBottomNav(),
       body: SafeArea(
         top: false,
         child: CustomScrollView(
           slivers: [
             SliverToBoxAdapter(child: _buildHeroHeader()),
             SliverToBoxAdapter(child: _buildSearchBar()),
-            SliverToBoxAdapter(child: _buildCategories()),
             SliverToBoxAdapter(child: _buildPromoBanner()),
-            SliverToBoxAdapter(child: _buildSectionLabel(
-              'ប្រភេទសេវាកម្ម', 'មើលទាំងអស់ ›', onTap: () {})),
             SliverToBoxAdapter(child: _buildScheduledJobs()),
             SliverToBoxAdapter(child: _buildSectionLabel(
               'ទំនិញពេញនិយម', 'ទាំងអស់ ›',
@@ -266,27 +249,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCategories() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          _buildSectionLabelInline('ប្រភេទសេវាកម្ម', 'មើលទាំងអស់ ›'),
-          const SizedBox(height: 14),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: _categories
-                .map((c) => _CategoryButton(item: c))
-                .toList(),
-          ),
-          const SizedBox(height: 8),
-        ],
-      ),
-    );
-  }
-
   Widget _buildPromoBanner() {
     return Container(
       color: Colors.white,
@@ -383,40 +345,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildBottomNav() {
-    return NavigationBar(
-      selectedIndex: _bottomIndex,
-      onDestinationSelected: (i) => setState(() => _bottomIndex = i),
-      backgroundColor: Colors.white,
-      indicatorColor: AppColors.greenLight,
-      labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-      destinations: const [
-        NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          selectedIcon: Icon(Icons.home, color: AppColors.primaryGreen),
-          label: 'ទំព័រដើម',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.calendar_today_outlined),
-          selectedIcon:
-              Icon(Icons.calendar_today, color: AppColors.primaryGreen),
-          label: 'កាលវិភាគ',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.account_balance_wallet_outlined),
-          selectedIcon: Icon(Icons.account_balance_wallet,
-              color: AppColors.primaryGreen),
-          label: 'កាបូប',
-        ),
-        NavigationDestination(
-          icon: Icon(Icons.person_outline),
-          selectedIcon: Icon(Icons.person, color: AppColors.primaryGreen),
-          label: 'គណនី',
-        ),
-      ],
-    );
-  }
-
   Widget _buildSectionLabel(String title, String action,
       {required VoidCallback onTap}) {
     return Padding(
@@ -447,50 +375,6 @@ class _HomeScreenState extends State<HomeScreen> {
 }
 
 // ─── Sub-widgets ──────────────────────────────────────────────────────────────
-
-class _CategoryItem {
-  final String icon; 
-  final String label;
-  final Color bg;
-  const _CategoryItem({required this.icon, required this.label, required this.bg});
-}
-
-class _CategoryButton extends StatelessWidget {
-  final _CategoryItem item;
-  const _CategoryButton({required this.item});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Container(
-          width: 52,
-          height: 52,
-          decoration: BoxDecoration(
-            color: item.bg,
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Center(
-            child: Text(
-              item.icon,
-              style: const TextStyle(fontSize: 26), 
-            ),
-          ),
-        ),
-        const SizedBox(height: 6),
-        SizedBox(
-          width: 58,
-          child: Text(
-            item.label,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
-          ),
-        ),
-      ],
-    );
-  }
-}
 
 class _PromoItem {
   final String tag;
@@ -578,17 +462,17 @@ class _EquipmentCard extends StatelessWidget {
   const _EquipmentCard({required this.item, required this.onTap});
 
   static const Map<String, _ImgCfg> _cfgs = {
-    'tractor':   _ImgCfg('🚜', Color(0xFFE8F5E9), Color(0xFF43A047)), // Green
-    'harvester': _ImgCfg('🌾', Color(0xFFFFF8E1), Color(0xFFF9A825)), // Yellow
-    'pump':      _ImgCfg('🛸', Color(0xFFE3F2FD), Color(0xFF1E88E5)), // Blue
-    'koyon':     _ImgCfg('🛠', Color(0xFFFFF3E0), Color(0xFFFF9800)), // Orange
-    'spray':     _ImgCfg('💨', Color(0xFFFFEBEE), Color(0xFFEF5350)), // Red
+    'tractor':   _ImgCfg('assets/images/3.png', Color(0xFFE8F5E9), Color(0xFF43A047)),
+    'harvester': _ImgCfg('assets/images/2.png', Color(0xFFFFF8E1), Color(0xFFF9A825)),
+    'pump':      _ImgCfg('assets/images/4.png', Color(0xFFE3F2FD), Color(0xFF1E88E5)),
+    'koyon':     _ImgCfg('assets/images/1.png', Color(0xFFFFF3E0), Color(0xFFFF9800)),
+    'spray':     _ImgCfg('assets/images/5.png', Color(0xFFFFEBEE), Color(0xFFEF5350)),
   };
 
   @override
   Widget build(BuildContext context) {
     final cfg = _cfgs[item.imageAsset] ??
-        const _ImgCfg('⚙️', Color(0xFFF5F5F5), Color(0xFF9E9E9E));
+        const _ImgCfg('assets/images/app_icon.png', Color(0xFFF5F5F5), Color(0xFF9E9E9E));
 
     return GestureDetector(
       onTap: onTap,
@@ -618,7 +502,14 @@ class _EquipmentCard extends StatelessWidget {
                         const BorderRadius.vertical(top: Radius.circular(14)),
                   ),
                   child: Center(
-                      child: Text(cfg.icon, style: const TextStyle(fontSize: 45))),
+                    child: Image.asset(
+                      cfg.imagePath,
+                      width: 60,
+                      height: 60,
+                      fit: BoxFit.contain,
+                      errorBuilder: (_, __, ___) => Icon(Icons.image_not_supported, color: cfg.fg, size: 40),
+                    ),
+                  ),
                 ),
                 if (item.badge != EquipmentBadge.none)
                   Positioned(
@@ -706,8 +597,8 @@ class _EquipmentCard extends StatelessWidget {
 }
 
 class _ImgCfg {
-  final String icon; 
+  final String imagePath;
   final Color bg;
   final Color fg;
-  const _ImgCfg(this.icon, this.bg, this.fg);
+  const _ImgCfg(this.imagePath, this.bg, this.fg);
 }

@@ -2,9 +2,9 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/auth_provider.dart';
+import '../../../providers/auth_provider.dart';
 
-import '../../theme/app_colors.dart';
+import '../../../theme/app_colors.dart';
 
 class AppDrawer extends StatelessWidget {
   const AppDrawer({super.key});
@@ -149,7 +149,6 @@ class AppDrawer extends StatelessWidget {
                   iconColor: Colors.red,
                   onTap: () {
                     Navigator.pop(context);
-                    final mainNavigator = Navigator.of(context);
                     showDialog(
                       context: context,
                       builder: (dialogContext) => AlertDialog(

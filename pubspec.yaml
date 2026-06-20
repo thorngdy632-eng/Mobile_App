@@ -28,6 +28,10 @@ dependencies:
   geolocator: ^14.0.2
   geocoding: ^4.0.0
 
+  # Map (flutter_map + latlong2)
+  flutter_map: ^7.0.2
+  latlong2: ^0.9.1
+
   # UI
   flutter_svg: ^2.0.10+1
   cached_network_image: ^3.4.1

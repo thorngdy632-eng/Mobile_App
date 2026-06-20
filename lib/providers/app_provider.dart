@@ -1,8 +1,10 @@
 // lib/providers/app_provider.dart
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geolocator/geolocator.dart';
 import '../models/backhaul_load.dart';
 import '../models/scheduled_job.dart';
+import '../models/service_request.dart';
 import 'package:flutter/material.dart';
 
 // ─── Firestore-backed models ──────────────────────────────────────────────────
@@ -196,6 +198,11 @@ class AppProvider extends ChangeNotifier {
   List<DroneJob> get pendingDroneJobs =>
       _droneJobs.where((j) => j.status == 'pending').toList();
 
+  // ── Farmer map-drop service requests (5 services on home screen) ──────────
+  List<ServiceRequest> _serviceRequests = [];
+  List<ServiceRequest> get serviceRequests => _serviceRequests;
+
+
   // ── Legacy lists used by existing screens ─────────────────────────────────
   List<ScheduledJob> _scheduledJobs = [];
   List<ScheduledJob> get scheduledJobs => _scheduledJobs;
@@ -241,6 +248,20 @@ class AppProvider extends ChangeNotifier {
           .map((doc) => DroneJob.fromMap(doc.data(), doc.id))
           .toList();
       _notificationCount = pendingTractorJobs.length + pendingDroneJobs.length;
+      notifyListeners();
+    });
+
+    // Stream all farmer "drop location" service requests (5 home services),
+    // newest first. Used by both the Farmer (own requests) and Service
+    // Providers (matching requests of their serviceType).
+    _db
+        .collection('serviceRequests')
+        .orderBy('createdAt', descending: true)
+        .snapshots()
+        .listen((snapshot) {
+      _serviceRequests = snapshot.docs
+          .map((doc) => ServiceRequest.fromMap(doc.data(), doc.id))
+          .toList();
       notifyListeners();
     });
   }
@@ -329,6 +350,146 @@ class AppProvider extends ChangeNotifier {
         .update({'status': newStatus});
   }
 
+  // ── Farmer: drop a pin on the map and submit a service request ────────────
+  //
+  // Called from the FlutterMap/OpenStreetMap panel after the Farmer drops a
+  // location pin and fills in the request form (name, place of birth,
+  // current location, service type, land area, offer price).
+
+  Future<String?> addServiceRequest({
+    required String farmerUid,
+    required String farmerName,
+    required String placeOfBirth,
+    required double latitude,
+    required double longitude,
+    required String currentAddress,
+    required String serviceType,
+    required double landArea,
+    required String landUnit,
+    required double offerPrice,
+    String? notes,
+  }) async {
+    try {
+      final request = ServiceRequest(
+        id: '',
+        farmerUid: farmerUid,
+        farmerName: farmerName,
+        placeOfBirth: placeOfBirth,
+        latitude: latitude,
+        longitude: longitude,
+        currentAddress: currentAddress,
+        serviceType: serviceType,
+        landArea: landArea,
+        landUnit: landUnit,
+        offerPrice: offerPrice,
+        status: 'pending',
+        createdAt: DateTime.now(),
+        notes: notes,
+      );
+      await _db.collection('serviceRequests').add(request.toMap());
+      return null; // success
+    } catch (e) {
+      return 'មានបញ្ហាក្នុងការផ្ញើសំណើ: $e';
+    }
+  }
+
+  /// Service Provider: accept or decline a farmer's location-drop request.
+  ///
+  /// Accepting attaches `providerUid` / `providerName` so the farmer knows
+  /// who is coming, flips the global status to `accepted`, and removes the
+  /// job from every other matching provider's queue.
+  ///
+  /// Declining is per-provider: it only adds this provider's uid to
+  /// `declinedBy` so the request disappears from *their* queue, while every
+  /// other Service Provider whose `serviceType` matches can still see it and
+  /// accept it.
+  Future<void> respondToServiceRequest({
+    required String requestId,
+    required bool accept,
+    required String providerUid,
+    required String providerName,
+  }) async {
+    final docRef = _db.collection('serviceRequests').doc(requestId);
+    if (accept) {
+      await docRef.update({
+        'status': 'accepted',
+        'providerUid': providerUid,
+        'providerName': providerName,
+      });
+    } else {
+      await docRef.update({
+        'declinedBy': FieldValue.arrayUnion([providerUid]),
+      });
+    }
+  }
+
+  Future<void> updateServiceRequestStatus(
+      String requestId, String newStatus) async {
+    await _db
+        .collection('serviceRequests')
+        .doc(requestId)
+        .update({'status': newStatus});
+  }
+
+  Future<void> cancelServiceRequest(String requestId) async {
+    await updateServiceRequestStatus(requestId, 'cancelled');
+  }
+
+  /// Provider gives up / abandons an accepted request — sets status back to
+  /// 'pending' so it becomes visible to other matching providers again.
+  Future<void> abandonServiceRequest(String requestId) async {
+    await _db.collection('serviceRequests').doc(requestId).update({
+      'status': 'pending',
+      'providerUid': FieldValue.delete(),
+      'providerName': FieldValue.delete(),
+    });
+  }
+
+  /// All requests submitted by a particular Farmer (used on their "My
+  /// Requests" tab), newest first.
+  List<ServiceRequest> serviceRequestsForFarmer(String farmerUid) =>
+      _serviceRequests.where((r) => r.farmerUid == farmerUid).toList();
+
+  /// Pending requests that match a Service Provider's service type — these
+  /// are the "incoming job" notifications the provider sees and can
+  /// accept / decline. Pass [excludeDeclinedBy] (the provider's own uid) to
+  /// hide requests this specific provider has already declined — they stay
+  /// visible to every other matching provider.
+  List<ServiceRequest> pendingServiceRequestsForProvider(
+    String serviceType, {
+    String? excludeDeclinedBy,
+  }) =>
+      _serviceRequests
+          .where((r) =>
+              r.serviceType == serviceType &&
+              r.status == 'pending' &&
+              (excludeDeclinedBy == null ||
+                  !r.declinedBy.contains(excludeDeclinedBy)))
+          .toList();
+
+  /// Requests this provider has already accepted (their active jobs).
+  List<ServiceRequest> acceptedServiceRequestsForProvider(String providerUid) =>
+      _serviceRequests
+          .where((r) => r.providerUid == providerUid && r.status == 'accepted')
+          .toList();
+
+  /// Straight-line distance in km between a provider's current position and
+  /// the farmer's dropped pin — shown on the incoming-request card so the
+  /// provider can judge how far the job is.
+  double distanceToRequestKm({
+    required double providerLat,
+    required double providerLng,
+    required ServiceRequest request,
+  }) {
+    final meters = Geolocator.distanceBetween(
+      providerLat,
+      providerLng,
+      request.latitude,
+      request.longitude,
+    );
+    return meters / 1000.0;
+  }
+
   // ── Farmer: get only their own jobs ──────────────────────────────────────
 
   List<TractorJob> tractorJobsForFarmer(String farmerUid) =>
@@ -383,7 +544,7 @@ class AppProvider extends ChangeNotifier {
         from: 'ក្រុងសិរីស្វាយប៉ាវ',
         to: 'ស្រុកមង្គលបូរី',
         weight: '500 គក',
-        price: '\$80',
+        price: '320,000រៀល',
         color: const Color(0xFF43A047),
       ),
       BackhaulLoad(
@@ -393,7 +554,7 @@ class AppProvider extends ChangeNotifier {
         from: 'ស្រុកបន្ទាយអំពិល',
         to: 'ក្រុងសិរីស្វាយប៉ាវ',
         weight: '2 តោន',
-        price: '\$120',
+        price: '480,000រៀល',
         color: const Color(0xFFF9A825),
       ),
       BackhaulLoad(
@@ -403,7 +564,7 @@ class AppProvider extends ChangeNotifier {
         from: 'ស្រុកសសរ',
         to: 'ស្រុកអូរជ្រៅ',
         weight: '800 គក',
-        price: '\$60',
+        price: '240,000រៀល',
         color: const Color(0xFFEF5350),
       ),
     ];
