@@ -209,7 +209,11 @@ class _RegisterScreenState extends State<RegisterScreen>
     );
     if (!mounted) return;
     if (err == null) {
-      _navigateByRole(_role);
+      // Navigate using the role AuthProvider actually assigned (it may
+      // override the requested role — e.g. forcing the reserved admin
+      // account to the admin role regardless of what was selected here).
+      final effectiveRole = auth.currentUser?.role ?? _role;
+      _navigateByRole(effectiveRole);
     } else {
       _showError(err);
     }
@@ -528,14 +532,12 @@ class _RegisterScreenState extends State<RegisterScreen>
                 description: 'ផ្សព្វផ្សាយសេវា និងទទួលការជួល',
                 color: const Color(0xFFE65100),
               ),
-              const SizedBox(height: 10),
-              _buildRoleCard(
-                role: UserRole.admin,
-                emoji: '👨‍💼',
-                title: 'អ្នកគ្រប់គ្រង',
-                description: 'គ្រប់គ្រងប្រព័ន្ធ សេវា និងអ្នកប្រើប្រាស់',
-                color: const Color(0xFF1565C0),
-              ),
+              // NOTE: The "Administrator" role is intentionally NOT offered
+              // here. Nobody can self-register as admin through this form —
+              // the single admin account is provisioned separately and is
+              // recognized automatically by AuthProvider.register() only
+              // when the exact admin credentials are used. See
+              // auth_provider.dart for the server-side enforcement.
             ],
           ),
         ),
@@ -892,11 +894,7 @@ class _RegisterScreenState extends State<RegisterScreen>
           _summaryRow('📱 ទូរស័ព្ទ', _phoneCtrl.text.trim()),
           _summaryRow(
             '🎭 តួនាទី',
-            _role == UserRole.farmer
-                ? 'កសិករ'
-                : _role == UserRole.serviceProvider
-                    ? 'អ្នកផ្តល់សេវា'
-                    : 'អ្នកគ្រប់គ្រង',
+            _role == UserRole.farmer ? 'កសិករ' : 'អ្នកផ្តល់សេវា',
           ),
           if (_role == UserRole.serviceProvider)
             _summaryRow('🔧 សេវាកម្ម',

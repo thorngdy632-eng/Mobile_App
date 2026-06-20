@@ -125,13 +125,15 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
       appBar: AppBar(
         backgroundColor: Colors.white,
         surfaceTintColor: Colors.transparent,
+        foregroundColor: const Color(0xFF2D3142),
         elevation: 0,
         title: const Text('ការជូនដំណឹង',
             style: TextStyle(
                 fontSize: 18,
                 fontWeight: FontWeight.w800,
                 color: Color(0xFF2D3142))),
-        leading: BackButton(
+        leading: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded),
             onPressed: () => Navigator.pop(context)),
       ),
       body: notifications.isEmpty

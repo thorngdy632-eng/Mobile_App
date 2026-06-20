@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -13,7 +14,7 @@ class AdminChatListScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
-    final myUid = auth.currentUser?.uid ?? '';
+    final myUid = auth.currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? '';
     final chatProv = context.read<ChatProvider>();
 
     return Scaffold(

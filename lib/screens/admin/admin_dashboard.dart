@@ -1,13 +1,16 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/app_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../chat/admin_chat_list_screen.dart';
 import '../profile/edit_profile_screen.dart';
+import '../auth/auth_wrapper.dart';
 import 'user_list_screen.dart';
+import 'admin_statistics_screen.dart';
 
 // ─── Design tokens ────────────────────────────────────────────────────────────
 const _kNavyDeep    = Color(0xFF0A1628);
@@ -66,7 +69,7 @@ class _AdminDashboardState extends State<AdminDashboard>
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final user = auth.currentUser;
-    final myUid = user?.uid ?? '';
+    final myUid = user?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? '';
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: const SystemUiOverlayStyle(
@@ -229,7 +232,7 @@ class _DashboardTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer2<AppProvider, ChatProvider>(
       builder: (context, appProv, chatProv, _) {
-        final myUid = context.read<AuthProvider>().currentUser?.uid ?? '';
+        final myUid = context.read<AuthProvider>().currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? '';
         final totalJobs = appProv.tractorJobs.length + appProv.droneJobs.length;
         final pending = appProv.pendingTractorJobs.length + appProv.pendingDroneJobs.length;
         final confirmed = appProv.tractorJobs.where((j) => j.status == 'confirmed').length
@@ -243,7 +246,7 @@ class _DashboardTab extends StatelessWidget {
             // ── Hero header ────────────────────────────────────────────────
             SliverToBoxAdapter(child: _buildHeader(context, myUid, chatProv)),
 
-            // ── KPI cards ──────────────────────────────────────────────────
+            // ── User overview (dynamic, live from Firestore) ────────────────
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
               sliver: SliverToBoxAdapter(
@@ -251,6 +254,44 @@ class _DashboardTab extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        _sectionTitle('អ្នកប្រើប្រាស់'),
+                        GestureDetector(
+                          onTap: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const AdminStatisticsScreen()),
+                          ),
+                          child: const Text('មើលស្ថិតិលម្អិត →',
+                            style: TextStyle(fontSize: 12, color: _kAccentBlue)),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(children: [
+                      Expanded(child: _KpiCard(value: '${appProv.totalUsersCount}', label: 'អ្នកប្រើប្រាស់សរុប', icon: Icons.groups_rounded, color: _kAccentBlue)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _KpiCard(value: '${appProv.totalFarmersCount}', label: 'កសិករ', icon: Icons.agriculture_rounded, color: _kAccentGreen)),
+                    ]),
+                    const SizedBox(height: 10),
+                    Row(children: [
+                      Expanded(child: _KpiCard(value: '${appProv.totalServiceProvidersCount}', label: 'អ្នកផ្តល់សេវា', icon: Icons.engineering_rounded, color: _kAccentAmber)),
+                      const SizedBox(width: 10),
+                      Expanded(child: _KpiCard(value: '${appProv.totalAdminsCount}', label: 'អ្នកគ្រប់គ្រង', icon: Icons.admin_panel_settings_rounded, color: _kAccentPurple)),
+                    ]),
+                  ],
+                ),
+              ),
+            ),
+
+            // ── KPI cards (jobs) ─────────────────────────────────────────────
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+              sliver: SliverToBoxAdapter(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const SizedBox(height: 24),
                     _sectionTitle('ទិដ្ឋភាពសង្ខេប'),
                     const SizedBox(height: 12),
                     Row(children: [
@@ -285,7 +326,9 @@ class _DashboardTab extends StatelessWidget {
                       const SizedBox(width: 10),
                       _QuickAction(icon: Icons.chat_rounded,            label: 'ការ\nសន្ទនា',    color: _kAccentCyan,   onTap: () => onSwitchTab(3)),
                       const SizedBox(width: 10),
-                      _QuickAction(icon: Icons.bar_chart_rounded,       label: 'ស្ថិតិ\nព័ត៌មាន',  color: _kAccentGreen,  onTap: () {}),
+                      _QuickAction(icon: Icons.bar_chart_rounded,       label: 'ស្ថិតិ\nព័ត៌មាន',  color: _kAccentGreen,  onTap: () => Navigator.push(context,
+                        MaterialPageRoute(builder: (_) => const AdminStatisticsScreen()),
+                      )),
                     ]),
                   ],
                 ),
@@ -453,7 +496,8 @@ class _DashboardTab extends StatelessWidget {
                   ],
                 ),
               ),
-              // Notification bell
+              // Notification bell — jumps to the Chat tab where all
+              // user messages (including problem reports) land.
               StreamBuilder<int>(
                 stream: chatProv.totalUnreadStream(myUid),
                 builder: (ctx, snap) {
@@ -463,7 +507,7 @@ class _DashboardTab extends StatelessWidget {
                     children: [
                       _HeaderIconBtn(
                         icon: Icons.notifications_rounded,
-                        onTap: () {},
+                        onTap: () => onSwitchTab(3),
                       ),
                       if (count > 0)
                         Positioned(
@@ -1412,7 +1456,7 @@ class _SettingsTab extends StatelessWidget {
                   label: 'ពាក្យសម្ងាត់',
                   subtitle: 'ផ្លាស់ប្ដូរពាក្យសម្ងាត់',
                   color: _kAccentPurple,
-                  onTap: () {},
+                  onTap: () => _showChangePasswordSheet(context, user?.email ?? ''),
                 ),
               ]),
 
@@ -1424,21 +1468,48 @@ class _SettingsTab extends StatelessWidget {
                   label: 'ការជូនដំណឹង',
                   subtitle: 'គ្រប់គ្រងការជូនដំណឹង',
                   color: _kAccentAmber,
-                  onTap: () {},
+                  onTap: () => _showInfoDialog(
+                    context,
+                    icon: Icons.notifications_rounded,
+                    color: _kAccentAmber,
+                    title: 'ការជូនដំណឹង',
+                    message: 'ការជូនដំណឹងសម្រាប់ការស្នើសុំថ្មី និងសារសន្ទនា '
+                        'ត្រូវបានបើកជានិច្ច។ លេខបន្ទះក្រហមនៅលើផ្ទាំង '
+                        '"ការសន្ទនា" និង "ការស្នើសុំ" បង្ហាញចំនួនថ្មីៗ '
+                        'ដោយស្វ័យប្រវត្តិ។',
+                  ),
                 ),
                 _SettingsTile(
                   icon: Icons.language_outlined,
                   label: 'ភាសា',
                   subtitle: 'ភាសាខ្មែរ',
                   color: _kAccentCyan,
-                  onTap: () {},
+                  onTap: () => _showInfoDialog(
+                    context,
+                    icon: Icons.language_rounded,
+                    color: _kAccentCyan,
+                    title: 'ភាសា',
+                    message: 'កម្មវិធីនេះប្រើភាសាខ្មែរទាំងស្រុងបច្ចុប្បន្ន។ '
+                        'ការគាំទ្រភាសាបន្ថែមអាចមកដល់ក្នុងកំណែបន្ទាប់។',
+                  ),
                 ),
                 _SettingsTile(
                   icon: Icons.security_outlined,
                   label: 'ការសន្តិសុខ',
                   subtitle: 'Firestore rules · Access control',
                   color: _kAccentGreen,
-                  onTap: () {},
+                  onTap: () => _showInfoDialog(
+                    context,
+                    icon: Icons.security_rounded,
+                    color: _kAccentGreen,
+                    title: 'ការសន្តិសុខ',
+                    message: 'គណនីអ្នកគ្រប់គ្រងត្រូវបានកំណត់ដោយប្រព័ន្ធ៖ '
+                        'មិនមានអ្នកប្រើប្រាស់ណាម្នាក់អាចចុះឈ្មោះខ្លួនជា '
+                        'អ្នកគ្រប់គ្រងបានទេ លុះត្រាតែប្រើគណនីគ្រប់គ្រងដែល '
+                        'បានកំណត់ជាមុនប៉ុណ្ណោះ។ ច្បាប់ Firestore ការពារ '
+                        'ទិន្នន័យអ្នកប្រើប្រាស់ឲ្យតែម្ចាស់ និងអ្នកគ្រប់គ្រង '
+                        'ប៉ុណ្ណោះអាចកែប្រែ ឬលុបបាន។',
+                  ),
                 ),
               ]),
 
@@ -1450,14 +1521,30 @@ class _SettingsTab extends StatelessWidget {
                   label: 'ជំនួយ',
                   subtitle: 'FAQ · Support',
                   color: _kTextSecondary,
-                  onTap: () {},
+                  onTap: () => _showInfoDialog(
+                    context,
+                    icon: Icons.help_rounded,
+                    color: _kTextSecondary,
+                    title: 'ជំនួយ',
+                    message: 'ប្រសិនបើអ្នកមានសំណួរ ឬត្រូវការជំនួយក្នុងការ '
+                        'គ្រប់គ្រងប្រព័ន្ធ សូមទាក់ទងក្រុមអភិវឌ្ឍន៍ '
+                        'តាមរយៈអ៊ីមែលដែលបានចុះឈ្មោះ។',
+                  ),
                 ),
                 _SettingsTile(
                   icon: Icons.info_outline_rounded,
                   label: 'អំពីកម្មវិធី',
                   subtitle: 'Dorne v1.0.0 · Built with Flutter',
                   color: _kTextSecondary,
-                  onTap: () {},
+                  onTap: () => _showInfoDialog(
+                    context,
+                    icon: Icons.info_rounded,
+                    color: _kTextSecondary,
+                    title: 'អំពីកម្មវិធី',
+                    message: 'តោះជួល (Dorne) — ប្រព័ន្ធភ្ជាប់កសិករ និង '
+                        'អ្នកផ្តល់សេវាកសិកម្ម។\n\nកំណែ៖ 1.0.0\n'
+                        'បង្កើតឡើងជាមួយ Flutter & Firebase.',
+                  ),
                 ),
               ]),
 
@@ -1468,6 +1555,12 @@ class _SettingsTab extends StatelessWidget {
                 onTap: () async {
                   HapticFeedback.lightImpact();
                   await auth.logout();
+                  if (context.mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const AuthWrapper()),
+                      (_) => false,
+                    );
+                  }
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(vertical: 16),
@@ -1493,6 +1586,183 @@ class _SettingsTab extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+
+  // ── Generic informational dialog (replaces the old dead onTap: () {}) ────
+  void _showInfoDialog(
+    BuildContext context, {
+    required IconData icon,
+    required Color color,
+    required String title,
+    required String message,
+  }) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10)),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(title,
+                style: const TextStyle(
+                  color: _kTextPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
+            ),
+          ],
+        ),
+        content: Text(message,
+          style: const TextStyle(color: _kTextSecondary, fontSize: 13, height: 1.5)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('យល់ព្រម', style: TextStyle(color: _kAccentBlue, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Real change-password flow via Firebase Auth ──────────────────────────
+  void _showChangePasswordSheet(BuildContext context, String email) {
+    final newPassCtrl = TextEditingController();
+    final confirmCtrl = TextEditingController();
+    bool obscure1 = true, obscure2 = true;
+    bool submitting = false;
+    String? errorText;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: _kSurface,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(22))),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          return Padding(
+            padding: EdgeInsets.fromLTRB(20, 20, 20,
+                20 + MediaQuery.of(ctx).viewInsets.bottom),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('ផ្លាស់ប្ដូរពាក្យសម្ងាត់',
+                  style: TextStyle(color: _kTextPrimary, fontSize: 17, fontWeight: FontWeight.w800)),
+                const SizedBox(height: 6),
+                Text('សម្រាប់គណនី $email',
+                  style: const TextStyle(color: _kTextSecondary, fontSize: 12)),
+                const SizedBox(height: 20),
+                TextField(
+                  controller: newPassCtrl,
+                  obscureText: obscure1,
+                  style: const TextStyle(color: _kTextPrimary),
+                  decoration: InputDecoration(
+                    hintText: 'ពាក្យសម្ងាត់ថ្មី (យ៉ាងហោចណាស់ ៦ តួ)',
+                    hintStyle: const TextStyle(color: _kTextMuted, fontSize: 13),
+                    filled: true,
+                    fillColor: _kNavyMid,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: _kBorder)),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscure1 ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        color: _kTextMuted, size: 18),
+                      onPressed: () => setSheetState(() => obscure1 = !obscure1),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: confirmCtrl,
+                  obscureText: obscure2,
+                  style: const TextStyle(color: _kTextPrimary),
+                  decoration: InputDecoration(
+                    hintText: 'បញ្ជាក់ពាក្យសម្ងាត់ថ្មី',
+                    hintStyle: const TextStyle(color: _kTextMuted, fontSize: 13),
+                    filled: true,
+                    fillColor: _kNavyMid,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: const BorderSide(color: _kBorder)),
+                    suffixIcon: IconButton(
+                      icon: Icon(obscure2 ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        color: _kTextMuted, size: 18),
+                      onPressed: () => setSheetState(() => obscure2 = !obscure2),
+                    ),
+                  ),
+                ),
+                if (errorText != null) ...[
+                  const SizedBox(height: 10),
+                  Text(errorText!, style: const TextStyle(color: _kAccentRed, fontSize: 12)),
+                ],
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: _kAccentBlue,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: submitting ? null : () async {
+                      final p1 = newPassCtrl.text;
+                      final p2 = confirmCtrl.text;
+                      if (p1.length < 6) {
+                        setSheetState(() => errorText = 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងហោចណាស់ ៦ តួ');
+                        return;
+                      }
+                      if (p1 != p2) {
+                        setSheetState(() => errorText = 'ពាក្យសម្ងាត់មិនដូចគ្នា');
+                        return;
+                      }
+                      setSheetState(() { submitting = true; errorText = null; });
+                      try {
+                        await FirebaseAuth.instance.currentUser?.updatePassword(p1);
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('ផ្លាស់ប្ដូរពាក្យសម្ងាត់ដោយជោគជ័យ ✓'),
+                              backgroundColor: _kAccentGreen,
+                            ),
+                          );
+                        }
+                      } on FirebaseAuthException catch (e) {
+                        String msg;
+                        switch (e.code) {
+                          case 'requires-recent-login':
+                            msg = 'សូមចេញ ហើយចូលគណនីម្ដងទៀត មុននឹងផ្លាស់ប្ដូរពាក្យសម្ងាត់';
+                            break;
+                          case 'weak-password':
+                            msg = 'ពាក្យសម្ងាត់ខ្សោយពេក';
+                            break;
+                          default:
+                            msg = 'មានបញ្ហា (${e.code})';
+                        }
+                        setSheetState(() { submitting = false; errorText = msg; });
+                      } catch (e) {
+                        setSheetState(() { submitting = false; errorText = 'មានបញ្ហា: $e'; });
+                      }
+                    },
+                    child: submitting
+                      ? const SizedBox(width: 20, height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white))
+                      : const Text('រក្សាទុក', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
   }
 }

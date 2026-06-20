@@ -8,15 +8,10 @@ import '../../providers/auth_provider.dart';
 import '../../providers/app_provider.dart';
 import '../../providers/chat_provider.dart';
 import '../../models/chat_message.dart';
-import '../../models/equipment_item.dart';
 import '../../models/service_request.dart';
-import '../../widgets/job_card.dart';
 import '../chat/chat_screen.dart';
 import '../profile/edit_profile_screen.dart';
 import '../provider/notifications/notifications_screen.dart';
-import '../provider/jobs/job_detail_screen.dart';
-import '../provider/jobs/all_jobs_screen.dart';
-import '../provider/equipment/equipment_detail_screen.dart';
 import 'farmer_map_screen.dart';
 import 'my_service_requests_screen.dart';
 import 'service_request_map_screen.dart';
@@ -38,25 +33,6 @@ const List<_PromoItem> _promos = [
     subtitle: 'តុក្កតា · ABA',
     accentColor: Color(0xFF66BB6A),
     icon: Icons.agriculture_outlined,
-  ),
-];
-
-final List<EquipmentItem> _equipment = [
-  const EquipmentItem(
-    name: 'គ្រឿង Kubota L3408',
-    price: '45,000រៀល',
-    location: 'ស្រុកបាទី',
-    rating: 4.9,
-    imageAsset: 'tractor',
-    badge: EquipmentBadge.none,
-  ),
-  const EquipmentItem(
-    name: 'យន្តហោះ Yanmar YT3',
-    price: '120,000រៀល',
-    location: 'ក្រុងសិរីស្វាយប៉ាវ',
-    rating: 4.7,
-    imageAsset: 'harvester',
-    badge: EquipmentBadge.hot,
   ),
 ];
 
@@ -287,18 +263,6 @@ class _FarmerDrawer extends StatelessWidget {
                       context,
                       MaterialPageRoute(
                           builder: (_) => const NotificationsScreen()),
-                    );
-                  },
-                ),
-                _DrawerItem(
-                  icon: Icons.inventory_2_rounded,
-                  label: 'ទំនិញទាំងអស់',
-                  onTap: () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                          builder: (_) => const AllJobsScreen()),
                     );
                   },
                 ),
@@ -625,50 +589,6 @@ class _HomeTab extends StatelessWidget {
           child: _MyRequestsStrip(user: user),
         ),
 
-        // ── Scheduled jobs ──
-        SliverToBoxAdapter(
-          child: _SectionHeader(
-            title: 'ការងារបច្ចុប្បន្ន',
-            action: '',
-            onAction: null,
-          ),
-        ),
-        SliverToBoxAdapter(
-          child: Consumer<AppProvider>(
-            builder: (_, prov, __) => prov.isLoading
-                ? const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()))
-                : Column(
-                    children: prov.scheduledJobs
-                        .map((job) => Padding(
-                              padding:
-                                  const EdgeInsets.fromLTRB(16, 0, 16, 10),
-                              child: JobCard(
-                                job: job,
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                      builder: (_) =>
-                                          JobDetailScreen(job: job)),
-                                ),
-                              ),
-                            ))
-                        .toList(),
-                  ),
-          ),
-        ),
-
-        // ── Equipment ──
-        SliverToBoxAdapter(
-          child: _SectionHeader(
-            title: 'ទំនិញពេញនិយម',
-            action: 'ទាំងអស់',
-            onAction: () => Navigator.push(context,
-                MaterialPageRoute(builder: (_) => const AllJobsScreen())),
-          ),
-        ),
-        SliverToBoxAdapter(child: _EquipmentRow()),
         const SliverToBoxAdapter(child: SizedBox(height: 28)),
       ],
     );
@@ -1491,179 +1411,6 @@ class _MyRequestsStrip extends StatelessWidget {
   }
 }
 
-// ─── Equipment row ────────────────────────────────────────────────────────────
-
-class _EquipmentRow extends StatelessWidget {
-  static const Map<String, _ImgCfg> _cfgs = {
-    'tractor': _ImgCfg('assets/images/3.png', Color(0xFFE8F5E9), Color(0xFF43A047)),
-    'harvester': _ImgCfg('assets/images/2.png', Color(0xFFFFF8E1), Color(0xFFF9A825)),
-    'pump': _ImgCfg('assets/images/4.png', Color(0xFFE3F2FD), Color(0xFF1E88E5)),
-    'koyon': _ImgCfg('assets/images/1.png', Color(0xFFFFF3E0), Color(0xFFFF9800)),
-    'spray': _ImgCfg('assets/images/5.png', Color(0xFFFFEBEE), Color(0xFFEF5350)),
-  };
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 205,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-        itemCount: _equipment.length,
-        itemBuilder: (_, i) {
-          final item = _equipment[i];
-          final cfg = _cfgs[item.imageAsset] ??
-              const _ImgCfg('assets/images/app_icon.png',
-                  Color(0xFFF5F5F5), Color(0xFF9E9E9E));
-          return Padding(
-            padding: EdgeInsets.only(right: i < _equipment.length - 1 ? 12 : 0),
-            child: _EquipmentCard(
-              item: item,
-              cfg: cfg,
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) => EquipmentDetailScreen(item: item)),
-              ),
-            ),
-          );
-        },
-      ),
-    );
-  }
-}
-
-class _EquipmentCard extends StatelessWidget {
-  final EquipmentItem item;
-  final _ImgCfg cfg;
-  final VoidCallback onTap;
-  const _EquipmentCard(
-      {required this.item, required this.cfg, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 158,
-        decoration: BoxDecoration(
-          color: _kCard,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(
-                color: Color(0x0C000000),
-                blurRadius: 10,
-                offset: Offset(0, 3))
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                Container(
-                  height: 108,
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: cfg.bg,
-                    borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16)),
-                  ),
-                  child: Center(
-                    child: Image.asset(cfg.imagePath,
-                        width: 64,
-                        height: 64,
-                        fit: BoxFit.contain,
-                        errorBuilder: (_, __, ___) => Icon(
-                            Icons.image_not_supported,
-                            color: cfg.fg,
-                            size: 40)),
-                  ),
-                ),
-                if (item.badge != EquipmentBadge.none)
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 7, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: item.badge == EquipmentBadge.hot
-                            ? const Color(0xFFEF5350)
-                            : _kGreen,
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        item.badge == EquipmentBadge.hot ? 'HOT' : 'ថ្មី',
-                        style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 9,
-                            fontWeight: FontWeight.w700),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 9, 10, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(item.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: Color(0xFF212121))),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      const Icon(Icons.location_on,
-                          size: 11, color: Color(0xFF9E9E9E)),
-                      const SizedBox(width: 2),
-                      Expanded(
-                          child: Text(item.location,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF9E9E9E)))),
-                    ],
-                  ),
-                  const SizedBox(height: 7),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(item.price,
-                          style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w800,
-                              color: _kGreen)),
-                      Row(
-                        children: [
-                          const Icon(Icons.star_rounded,
-                              size: 13, color: Color(0xFFFFC107)),
-                          const SizedBox(width: 2),
-                          Text(item.rating.toStringAsFixed(1),
-                              style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Color(0xFF757575),
-                                  fontWeight: FontWeight.w600)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 // ─── Chat Tab ─────────────────────────────────────────────────────────────────
 
 class _ChatTab extends StatelessWidget {
@@ -1788,10 +1535,46 @@ class _ChatTab extends StatelessWidget {
                           style: const TextStyle(
                               fontSize: 12, color: Color(0xFF9E9E9E)),
                         ),
-                        trailing: Text(
-                          _fmtDate(room.lastMessageTime),
-                          style: const TextStyle(
-                              fontSize: 11, color: Color(0xFF9E9E9E)),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              _fmtDate(room.lastMessageTime),
+                              style: const TextStyle(
+                                  fontSize: 11, color: Color(0xFF9E9E9E)),
+                            ),
+                            const SizedBox(width: 4),
+                            PopupMenuButton<String>(
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(maxWidth: 100),
+                              icon: const Icon(Icons.more_horiz,
+                                  size: 20, color: Colors.grey),
+                              onSelected: (value) {
+                                if (value == 'delete') {
+                                  _showDeleteChatDialog(
+                                      context, chatProv, room.id, otherName);
+                                }
+                              },
+                              itemBuilder: (BuildContext context) => [
+                                const PopupMenuItem<String>(
+                                  value: 'delete',
+                                  height: 38,
+                                  child: Row(
+                                    children: [
+                                      Icon(Icons.delete_outline,
+                                          color: Colors.red, size: 18),
+                                      SizedBox(width: 8),
+                                      Text('លុប',
+                                          style: TextStyle(
+                                              color: Colors.red,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w500)),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
                         ),
                         onTap: () => Navigator.push(
                           context,
@@ -1823,6 +1606,58 @@ class _ChatTab extends StatelessWidget {
     }
     return '${dt.day}/${dt.month}';
   }
+}
+
+void _showDeleteChatDialog(
+    BuildContext context, ChatProvider chatProv, String roomId, String name) {
+  showDialog(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: const Row(
+        children: [
+          Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+          SizedBox(width: 10),
+          Text('លុបការសន្ទនា?',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        ],
+      ),
+      content: Text(
+          'តើអ្នកពិតជាចង់លុបការសន្ទនាជាមួយ « $name » មែនទេ? សារទាំងអស់នឹងត្រូវលុបបាត់រហូត។'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('បោះបង់',
+              style:
+                  TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+        ),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.red,
+            shape:
+                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onPressed: () async {
+            Navigator.pop(ctx);
+            bool success = await chatProv.deleteChatRoom(roomId);
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(success
+                      ? 'បានលុបការសន្ទនារួចរាល់ ✓'
+                      : 'ការលុបមានបញ្ហា ៖('),
+                  backgroundColor: success ? Colors.red : Colors.orange,
+                ),
+              );
+            }
+          },
+          child: const Text('លុបចេញ',
+              style:
+                  TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        ),
+      ],
+    ),
+  );
 }
 
 // ─── Profile Tab ──────────────────────────────────────────────────────────────
@@ -1990,6 +1825,14 @@ class _ProfileTab extends StatelessWidget {
                     ),
                   ),
 
+                  const SizedBox(height: 10),
+                  _ProfileActionTile(
+                    icon: Icons.support_agent_rounded,
+                    label: 'ទាក់ទងអ្នកគ្រប់គ្រង',
+                    color: const Color(0xFFD32F2F),
+                    onTap: () => _contactAdmin(context, user),
+                  ),
+
                   const SizedBox(height: 20),
 
                   SizedBox(
@@ -2027,6 +1870,79 @@ class _ProfileTab extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  // ── Find the admin account and open (or create) a chat with them ─────────
+  //
+  // There is always exactly one admin (the reserved admin@gmail.com / role
+  // == 'admin' account). We look it up dynamically from Firestore rather
+  // than hard-coding a uid, so this keeps working even if the admin account
+  // is re-created.
+  Future<void> _contactAdmin(BuildContext context, dynamic user) async {
+    if (user == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: _kGreen),
+      ),
+    );
+
+    try {
+      final adminSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'admin')
+          .limit(1)
+          .get();
+
+      if (context.mounted) Navigator.pop(context); // close loading dialog
+
+      if (adminSnap.docs.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('មិនអាចរកឃើញគណនីអ្នកគ្រប់គ្រងបានទេ'),
+              backgroundColor: Color(0xFFD32F2F),
+            ),
+          );
+        }
+        return;
+      }
+
+      final adminDoc = adminSnap.docs.first;
+      final adminUid = adminDoc.id;
+      final adminName = adminDoc.data()['fullName'] as String? ?? 'អ្នកគ្រប់គ្រង';
+
+      if (!context.mounted) return;
+      final chatProv = context.read<ChatProvider>();
+      final chatRoomId = await chatProv.ensureChatRoom(
+        myUid: user.uid as String,
+        peerId: adminUid,
+      );
+
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            chatRoomId: chatRoomId,
+            peerId: adminUid,
+            peerName: adminName,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context); // close loading dialog if still open
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('មានបញ្ហា: $e'),
+            backgroundColor: const Color(0xFFD32F2F),
+          ),
+        );
+      }
+    }
   }
 }
 

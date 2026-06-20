@@ -2,7 +2,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:provider/provider.dart';
 import '../../models/user_model.dart';
+import '../../providers/app_provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import 'user_detail_screen.dart';
@@ -113,7 +116,10 @@ class _UserListScreenState extends State<UserListScreen> {
                 itemCount: users.length,
                 separatorBuilder: (_, __) => const Divider(
                     height: 1, indent: 72, color: Color(0xFFF5F5F5)),
-                itemBuilder: (ctx, i) => _UserTile(user: users[i]),
+                itemBuilder: (ctx, i) => _UserTile(
+                  user: users[i],
+                  onDelete: () => _confirmAndDelete(context, users[i]),
+                ),
               );
             },
           ),
@@ -173,14 +179,82 @@ class _UserListScreenState extends State<UserListScreen> {
       ),
     );
   }
+
+  // ── Delete user (admin-only action) ───────────────────────────────────────
+  void _confirmAndDelete(BuildContext context, UserModel target) {
+    final me = context.read<AuthProvider>().currentUser;
+
+    // Safety guard: an admin should never be able to delete their own
+    // account from this list (that would lock them out of the panel).
+    if (me != null && me.uid == target.uid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('អ្នកមិនអាចលុបគណនីផ្ទាល់ខ្លួនរបស់អ្នកបានទេ'),
+          backgroundColor: Color(0xFFD32F2F),
+        ),
+      );
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            SizedBox(width: 10),
+            Text('លុបអ្នកប្រើប្រាស់?',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+          ],
+        ),
+        content: Text(
+          'តើអ្នកពិតជាចង់លុបគណនីរបស់ « ${target.fullName} » '
+          '(${target.email}) មែនទេ? ទិន្នន័យទាំងអស់របស់អ្នកប្រើប្រាស់នេះ '
+          'នឹងត្រូវលុបចេញពីប្រព័ន្ធជាស្ថាពរ និងមិនអាចត្រឡប់វិញបានទេ។',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('បោះបង់',
+                style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              final appProv = context.read<AppProvider>();
+              final err = await appProv.deleteUser(target.uid);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(err == null
+                      ? 'បានលុបអ្នកប្រើប្រាស់ដោយជោគជ័យ ✓'
+                      : err),
+                  backgroundColor: err == null ? Colors.green : Colors.orange,
+                ),
+              );
+            },
+            child: const Text('លុបចេញ',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ── Individual user tile ──────────────────────────────────────────────────────
 
 class _UserTile extends StatelessWidget {
   final UserModel user;
+  final VoidCallback onDelete;
 
-  const _UserTile({required this.user});
+  const _UserTile({required this.user, required this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -250,8 +324,36 @@ class _UserTile extends StatelessWidget {
           ),
         ],
       ),
-      trailing: Icon(Icons.chevron_right,
-          color: AppColors.textMuted, size: 20),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert,
+                color: AppColors.textMuted, size: 20),
+            onSelected: (value) {
+              if (value == 'delete') onDelete();
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: 'delete',
+                height: 38,
+                child: Row(
+                  children: [
+                    Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                    SizedBox(width: 8),
+                    Text('លុបអ្នកប្រើប្រាស់',
+                        style: TextStyle(
+                            color: Colors.red,
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Icon(Icons.chevron_right, color: AppColors.textMuted, size: 20),
+        ],
+      ),
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(

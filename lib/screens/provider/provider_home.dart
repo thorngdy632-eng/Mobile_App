@@ -155,6 +155,7 @@ class _ProviderHomeState extends State<ProviderHome> {
                             peerName: name,
                             peerImageBase64: imgBase64,
                           ))),
+                        onDelete: () => _showDeleteChatDialog(context, chatProv, room.id, name),
                       );
                     },
                   );
@@ -216,6 +217,58 @@ class _ProviderHomeState extends State<ProviderHome> {
       return '${dt.hour.toString().padLeft(2, '0')}:${dt.minute.toString().padLeft(2, '0')}';
     }
     return '${dt.day}/${dt.month}';
+  }
+
+  void _showDeleteChatDialog(
+      BuildContext context, ChatProvider chatProv, String roomId, String name) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            SizedBox(width: 10),
+            Text('លុបការសន្ទនា?',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: Text(
+            'តើអ្នកពិតជាចង់លុបការសន្ទនាជាមួយ « $name » មែនទេ? សារទាំងអស់នឹងត្រូវលុបបាត់រហូត។'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('បោះបង់',
+                style:
+                    TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx);
+              bool success = await chatProv.deleteChatRoom(roomId);
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(success
+                        ? 'បានលុបការសន្ទនារួចរាល់ ✓'
+                        : 'ការលុបមានបញ្ហា ៖('),
+                    backgroundColor: success ? Colors.red : Colors.orange,
+                  ),
+                );
+              }
+            },
+            child: const Text('លុបចេញ',
+                style:
+                    TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 }
 
@@ -292,8 +345,9 @@ class _ChatRoomCard extends StatelessWidget {
   final String name, lastMessage, time;
   final ImageProvider? avatar;
   final VoidCallback onTap;
+  final VoidCallback? onDelete;
   const _ChatRoomCard({required this.name, required this.lastMessage,
-      required this.time, this.avatar, required this.onTap});
+      required this.time, this.avatar, required this.onTap, this.onDelete});
 
   @override
   Widget build(BuildContext context) {
@@ -321,7 +375,33 @@ class _ChatRoomCard extends StatelessWidget {
             Text(lastMessage, maxLines: 1, overflow: TextOverflow.ellipsis,
                 style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
           ])),
-          Text(time, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+          Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+            Text(time, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+            if (onDelete != null) ...[
+              const SizedBox(height: 4),
+              PopupMenuButton<String>(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(maxWidth: 100),
+                icon: const Icon(Icons.more_horiz, size: 20, color: Colors.grey),
+                onSelected: (value) {
+                  if (value == 'delete') onDelete!();
+                },
+                itemBuilder: (BuildContext context) => [
+                  const PopupMenuItem<String>(
+                    value: 'delete',
+                    height: 38,
+                    child: Row(
+                      children: [
+                        Icon(Icons.delete_outline, color: Colors.red, size: 18),
+                        SizedBox(width: 8),
+                        Text('លុប', style: TextStyle(color: Colors.red, fontSize: 14, fontWeight: FontWeight.w500)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ]),
         ]),
       ),
     );

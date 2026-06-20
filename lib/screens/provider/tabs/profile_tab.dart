@@ -1,12 +1,16 @@
 // lib/screens/provider/tabs/profile_tab.dart
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/auth_provider.dart';
+import '../../../providers/chat_provider.dart';
 import '../../../models/service_request.dart';
+import '../../../models/chat_message.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_colors.dart';
 import '../../profile/edit_profile_screen.dart';
+import '../../chat/chat_screen.dart';
 import '../../auth/auth_wrapper.dart';
 
 /// Profile tab for the Service Provider role.
@@ -131,6 +135,22 @@ class ProviderProfileTab extends StatelessWidget {
             width: double.infinity,
             height: 50,
             child: OutlinedButton.icon(
+              icon: const Icon(Icons.support_agent_rounded, color: Color(0xFFD32F2F)),
+              label: const Text('ទាក់ទងអ្នកគ្រប់គ្រង',
+                  style: TextStyle(color: Color(0xFFD32F2F), fontWeight: FontWeight.w700)),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFD32F2F)),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+              ),
+              onPressed: () => _contactAdmin(context, user),
+            ),
+          ),
+          const SizedBox(height: 12),
+
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: OutlinedButton.icon(
               icon: const Icon(Icons.logout_rounded, color: AppTheme.errorRed),
               label: const Text('ចាកចេញ', style: TextStyle(color: AppTheme.errorRed, fontWeight: FontWeight.w700)),
               style: OutlinedButton.styleFrom(
@@ -144,6 +164,71 @@ class ProviderProfileTab extends StatelessWidget {
         ]),
       ),
     );
+  }
+
+  // ── Find the admin account and open (or create) a chat with them ─────────
+  Future<void> _contactAdmin(BuildContext context, dynamic user) async {
+    if (user == null) return;
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => const Center(
+        child: CircularProgressIndicator(color: AppTheme.providerOrange),
+      ),
+    );
+
+    try {
+      final adminSnap = await FirebaseFirestore.instance
+          .collection('users')
+          .where('role', isEqualTo: 'admin')
+          .limit(1)
+          .get();
+
+      if (context.mounted) Navigator.pop(context); // close loading dialog
+
+      if (adminSnap.docs.isEmpty) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('មិនអាចរកឃើញគណនីអ្នកគ្រប់គ្រងបានទេ'),
+              backgroundColor: AppTheme.errorRed,
+            ),
+          );
+        }
+        return;
+      }
+
+      final adminDoc = adminSnap.docs.first;
+      final adminUid = adminDoc.id;
+      final adminName = adminDoc.data()['fullName'] as String? ?? 'អ្នកគ្រប់គ្រង';
+
+      if (!context.mounted) return;
+      final chatProv = context.read<ChatProvider>();
+      final chatRoomId = await chatProv.ensureChatRoom(
+        myUid: user.uid as String,
+        peerId: adminUid,
+      );
+
+      if (!context.mounted) return;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            chatRoomId: chatRoomId,
+            peerId: adminUid,
+            peerName: adminName,
+          ),
+        ),
+      );
+    } catch (e) {
+      if (context.mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('មានបញ្ហា: $e'), backgroundColor: AppTheme.errorRed),
+        );
+      }
+    }
   }
 
   void _confirmLogout(BuildContext context, AuthProvider auth) {

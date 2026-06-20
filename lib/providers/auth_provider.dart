@@ -10,6 +10,23 @@ class AuthProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  // ── Reserved admin account ───────────────────────────────────────────────
+  // Nobody can choose the "admin" role from the Register form (it is not
+  // even shown as an option there). The ONLY way to obtain the admin role
+  // is to register or log in with exactly this email + password. Whoever
+  // controls this single credential pair is the one and only admin.
+  //
+  // This check happens here — server-side from the client's perspective,
+  // i.e. it is enforced in the one code path that writes `role` to
+  // Firestore — so it cannot be bypassed by tampering with the UI.
+  static const String _adminEmail = 'admin@gmail.com';
+  static const String _adminPassword = 'admin@123';
+
+  static bool _isReservedAdminCredential(String email, String password) {
+    return email.trim().toLowerCase() == _adminEmail &&
+        password == _adminPassword;
+  }
+
   UserModel? _currentUser;
   bool _isLoading = false;
   bool _isInitializing = true;
@@ -49,6 +66,18 @@ class AuthProvider extends ChangeNotifier {
       final doc = await _db.collection('users').doc(uid).get();
       if (doc.exists && doc.data() != null) {
         _currentUser = UserModel.fromMap(doc.data()!, uid);
+      } else {
+        // Firestore doc missing — create a minimal UserModel so UID is always available
+        final fbUser = _auth.currentUser;
+        _currentUser = UserModel(
+          uid: uid,
+          fullName: fbUser?.displayName ?? 'អ្នកប្រើប្រាស់',
+          email: fbUser?.email ?? '',
+          phoneNumber: fbUser?.phoneNumber ?? '',
+          role: UserRole.farmer,
+          createdAt: DateTime.now(),
+        );
+        debugPrint('⚠️ Firestore doc missing for $uid — created fallback UserModel');
       }
     } catch (e) {
       debugPrint('Error fetching user profile: $e');
@@ -99,6 +128,19 @@ class AuthProvider extends ChangeNotifier {
     XFile? idCardFrontFile, // ទទួលយក XFile ពី register_screen.dart
     XFile? idCardBackFile,
   }) async {
+    // ── Role enforcement (server-side from the client's point of view) ─────
+    // The Register screen no longer offers "admin" as a choice, but we
+    // never trust the caller anyway: if the exact reserved admin email +
+    // password are used, force role = admin. For every other case, if a
+    // tampered/old client somehow still sends role = admin, downgrade it
+    // to farmer so nobody can self-promote to admin.
+    UserRole effectiveRole = role;
+    if (_isReservedAdminCredential(email, password)) {
+      effectiveRole = UserRole.admin;
+    } else if (role == UserRole.admin) {
+      effectiveRole = UserRole.farmer;
+    }
+
     _isLoading = true;
     _error = null;
     _uploadProgress = 0.1;
@@ -149,9 +191,9 @@ class AuthProvider extends ChangeNotifier {
         fullName: fullName,
         email: email.trim(),
         phoneNumber: phoneNumber,
-        role: role,
+        role: effectiveRole,
         address: address,
-        serviceType: serviceType,
+        serviceType: effectiveRole == UserRole.serviceProvider ? serviceType : null,
         idCard: idCard, // អាចរក្សាទុកតម្លៃ fallback បាន
         isActive: true,
         createdAt: DateTime.now(),
@@ -164,7 +206,7 @@ class AuthProvider extends ChangeNotifier {
       if (backImageBase64 != null) userMap['idCardBackUrl'] = backImageBase64;
       
       // កំណត់ស្ថានភាពរង់ចាំការផ្ទៀងផ្ទាត់ (សម្រាប់តែអ្នកផ្តល់សេវាត្រាក់ទ័រ)
-      if (role == UserRole.serviceProvider) userMap['idVerified'] = false;
+      if (effectiveRole == UserRole.serviceProvider) userMap['idVerified'] = false;
 
       // រុញទិន្នន័យទាំងស្រុងទៅ Firestore (លែងគាំង លែងជាប់ Rules ញ៉ាំញ៉ៅ)
       await _db.collection('users').doc(uid).set(userMap);

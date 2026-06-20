@@ -8,6 +8,7 @@ import '../../models/chat_message.dart';
 import '../../models/user_model.dart';
 import '../../models/service_request.dart' show ServiceTypes;
 import '../../providers/auth_provider.dart';
+import '../../providers/app_provider.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../chat/chat_screen.dart';
@@ -35,6 +36,15 @@ class UserDetailScreen extends StatelessWidget {
                   color: Colors.white, size: 20),
               onPressed: () => Navigator.pop(context),
             ),
+            actions: [
+              if (me != null && me.uid != user.uid)
+                IconButton(
+                  icon: const Icon(Icons.delete_outline_rounded,
+                      color: Colors.white, size: 22),
+                  tooltip: 'លុបអ្នកប្រើប្រាស់',
+                  onPressed: () => _confirmAndDelete(context),
+                ),
+            ],
             flexibleSpace: FlexibleSpaceBar(
               background: Container(
                 decoration: BoxDecoration(
@@ -226,6 +236,62 @@ class UserDetailScreen extends StatelessWidget {
       case UserRole.serviceProvider:
         return AppTheme.providerOrange;
     }
+  }
+
+  // ── Delete this user (admin-only action) ──────────────────────────────────
+  void _confirmAndDelete(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            SizedBox(width: 10),
+            Text('លុបអ្នកប្រើប្រាស់?',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 17)),
+          ],
+        ),
+        content: Text(
+          'តើអ្នកពិតជាចង់លុបគណនីរបស់ « ${user.fullName} » '
+          '(${user.email}) មែនទេ? ទិន្នន័យទាំងអស់របស់អ្នកប្រើប្រាស់នេះ '
+          'នឹងត្រូវលុបចេញពីប្រព័ន្ធជាស្ថាពរ និងមិនអាចត្រឡប់វិញបានទេ។',
+          style: const TextStyle(fontSize: 13, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('បោះបង់',
+                style: TextStyle(color: Colors.grey, fontWeight: FontWeight.w600)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () async {
+              Navigator.pop(ctx); // close confirm dialog
+              final appProv = context.read<AppProvider>();
+              final err = await appProv.deleteUser(user.uid);
+              if (!context.mounted) return;
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(err == null
+                      ? 'បានលុបអ្នកប្រើប្រាស់ដោយជោគជ័យ ✓'
+                      : err),
+                  backgroundColor: err == null ? Colors.green : Colors.orange,
+                ),
+              );
+              if (err == null && context.mounted) {
+                Navigator.pop(context); // back out to the user list
+              }
+            },
+            child: const Text('លុបចេញ',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 }
 

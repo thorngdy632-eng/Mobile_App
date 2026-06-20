@@ -5,6 +5,7 @@ import 'package:geolocator/geolocator.dart';
 import '../models/backhaul_load.dart';
 import '../models/scheduled_job.dart';
 import '../models/service_request.dart';
+import '../models/user_model.dart';
 import 'package:flutter/material.dart';
 
 // ─── Firestore-backed models ──────────────────────────────────────────────────
@@ -183,6 +184,30 @@ class DroneJob {
 
 // ─── AppProvider ──────────────────────────────────────────────────────────────
 
+/// One month's worth of new-signup counts, used by the Admin statistics
+/// screen to chart farmer / service-provider growth over time.
+class MonthlyUserStat {
+  final DateTime month; // always the 1st of the month
+  final int farmerCount;
+  final int providerCount;
+
+  const MonthlyUserStat({
+    required this.month,
+    required this.farmerCount,
+    required this.providerCount,
+  });
+
+  int get total => farmerCount + providerCount;
+
+  static const List<String> _khmerMonthsShort = [
+    'មករា', 'កុម្ភៈ', 'មីនា', 'មេសា', 'ឧសភា', 'មិថុនា',
+    'កក្កដា', 'សីហា', 'កញ្ញា', 'តុលា', 'វិច្ឆិកា', 'ធ្នូ',
+  ];
+
+  /// Short Khmer label, e.g. "មិថុនា" — used as a chart axis label.
+  String get label => _khmerMonthsShort[month.month - 1];
+}
+
 class AppProvider extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -202,6 +227,9 @@ class AppProvider extends ChangeNotifier {
   List<ServiceRequest> _serviceRequests = [];
   List<ServiceRequest> get serviceRequests => _serviceRequests;
 
+  // ── All app users (live, for Admin stats: totals, role counts, growth) ────
+  List<UserModel> _allUsers = [];
+  List<UserModel> get allUsers => _allUsers;
 
   // ── Legacy lists used by existing screens ─────────────────────────────────
   List<ScheduledJob> _scheduledJobs = [];
@@ -248,6 +276,19 @@ class AppProvider extends ChangeNotifier {
           .map((doc) => DroneJob.fromMap(doc.data(), doc.id))
           .toList();
       _notificationCount = pendingTractorJobs.length + pendingDroneJobs.length;
+      notifyListeners();
+    });
+
+    // Stream every registered user, live — this powers all of the Admin
+    // dashboard's "dynamic" numbers: total user count, farmer count,
+    // service-provider count, and the monthly growth breakdown. Because
+    // this is a snapshots() listener (not a one-off get()), every number
+    // derived from `_allUsers` below updates automatically the instant a
+    // user registers, is edited, or is deleted — no manual refresh needed.
+    _db.collection('users').snapshots().listen((snapshot) {
+      _allUsers = snapshot.docs
+          .map((doc) => UserModel.fromMap(doc.data(), doc.id))
+          .toList();
       notifyListeners();
     });
 
@@ -503,6 +544,81 @@ class AppProvider extends ChangeNotifier {
   void clearNotifications() {
     _notificationCount = 0;
     notifyListeners();
+  }
+
+  // ── Admin: live user statistics (fully dynamic — derived from _allUsers) ──
+  //
+  // Every getter below recomputes from the live `_allUsers` snapshot, so the
+  // Admin dashboard numbers change in real time the moment a user registers,
+  // changes role, or is deleted. Nothing here is hard-coded or static.
+
+  /// Total number of registered users, across every role.
+  int get totalUsersCount => _allUsers.length;
+
+  /// Total number of farmers.
+  int get totalFarmersCount =>
+      _allUsers.where((u) => u.role == UserRole.farmer).length;
+
+  /// Total number of service providers.
+  int get totalServiceProvidersCount =>
+      _allUsers.where((u) => u.role == UserRole.serviceProvider).length;
+
+  /// Total number of admins (normally exactly 1 — the reserved account).
+  int get totalAdminsCount =>
+      _allUsers.where((u) => u.role == UserRole.admin).length;
+
+  /// Monthly growth of farmers and service providers, based on each user's
+  /// `createdAt`. Returns the last [monthsBack] months (oldest → newest),
+  /// so it can be plotted directly on a bar/line chart. Months with zero
+  /// signups are included as zero, not skipped, so the timeline stays
+  /// continuous.
+  List<MonthlyUserStat> monthlyUserGrowth({int monthsBack = 6}) {
+    final now = DateTime.now();
+    // Build the list of the last `monthsBack` calendar months, oldest first.
+    final months = List<DateTime>.generate(monthsBack, (i) {
+      final monthsAgo = monthsBack - 1 - i;
+      return DateTime(now.year, now.month - monthsAgo, 1);
+    });
+
+    return months.map((monthStart) {
+      final monthEnd = DateTime(monthStart.year, monthStart.month + 1, 1);
+      final usersInMonth = _allUsers.where((u) =>
+          !u.createdAt.isBefore(monthStart) && u.createdAt.isBefore(monthEnd));
+      final farmers = usersInMonth
+          .where((u) => u.role == UserRole.farmer)
+          .length;
+      final providers = usersInMonth
+          .where((u) => u.role == UserRole.serviceProvider)
+          .length;
+      return MonthlyUserStat(
+        month: monthStart,
+        farmerCount: farmers,
+        providerCount: providers,
+      );
+    }).toList();
+  }
+
+  /// Admin: permanently delete a user's profile from Firestore.
+  ///
+  /// This removes the user's document from the `users` collection — they
+  /// will disappear from every list, every stat, and (since AuthWrapper /
+  /// the rest of the app reads the Firestore profile, not just the Auth
+  /// token) they will no longer be able to use the app even if their
+  /// Firebase Auth login still technically exists.
+  ///
+  /// NOTE: deleting the underlying Firebase Authentication account itself
+  /// (so the email/password can never sign in again) requires either the
+  /// user's own credentials or an admin backend (e.g. a Cloud Function with
+  /// the Firebase Admin SDK) — it cannot be done securely from a Flutter
+  /// client for *other* users' accounts. This deletes the app profile,
+  /// which is what controls access to every screen in this app.
+  Future<String?> deleteUser(String uid) async {
+    try {
+      await _db.collection('users').doc(uid).delete();
+      return null; // success
+    } catch (e) {
+      return 'មានបញ្ហាក្នុងការលុបអ្នកប្រើប្រាស់: $e';
+    }
   }
 
   // ── Legacy data for existing HomeScreen / BackhaulCard widgets ────────────
