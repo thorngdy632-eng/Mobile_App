@@ -2,10 +2,12 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/app_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../models/service_request.dart';
 import '../chat/admin_chat_list_screen.dart';
 import '../profile/edit_profile_screen.dart';
 import '../auth/auth_wrapper.dart';
@@ -26,6 +28,14 @@ const _kBorder      = Color(0xFF2A3F5F);
 const _kTextPrimary = Color(0xFFF1F5F9);
 const _kTextSecondary = Color(0xFF94A3B8);
 const _kTextMuted   = Color(0xFF64748B);
+
+const Map<String, String> _serviceImages = {
+  'plowing':     'assets/images/1.png',
+  'harvesting':  'assets/images/2.png',
+  'transport':   'assets/images/3.png',
+  'irrigation':  'assets/images/4.png',
+  'drone_spray': 'assets/images/5.png',
+};
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -88,20 +98,16 @@ class _AdminDashboardState extends State<AdminDashboard>
     );
   }
 
-  // ── Body router ────────────────────────────────────────────────────────────
-
   Widget _buildBody(dynamic user) {
     switch (_currentIndex) {
       case 0: return _DashboardTab(user: user, onSwitchTab: _switchTab);
-      case 1: return const _JobsTab();
+      case 1: return const _PromotionTab();
       case 2: return const _UsersTab();
       case 3: return const _ChatTab();
       case 4: return _SettingsTab(user: user);
       default: return const SizedBox();
     }
   }
-
-  // ── Bottom navigation ──────────────────────────────────────────────────────
 
   Widget _buildBottomNav(String myUid) {
     return StreamBuilder<int>(
@@ -119,11 +125,11 @@ class _AdminDashboardState extends State<AdminDashboard>
               height: 62,
               child: Row(
                 children: [
-                  _NavItem(icon: Icons.dashboard_rounded,     label: 'ផ្ទាំងគ្រប់គ្រង', index: 0, current: _currentIndex, onTap: _switchTab),
-                  _NavItem(icon: Icons.assignment_rounded,    label: 'ការស្នើសុំ',   index: 1, current: _currentIndex, onTap: _switchTab),
-                  _NavItem(icon: Icons.people_alt_rounded,    label: 'អ្នកប្រើ',    index: 2, current: _currentIndex, onTap: _switchTab),
-                  _NavItem(icon: Icons.chat_rounded,          label: 'ការសន្ទនា',   index: 3, current: _currentIndex, onTap: _switchTab, badge: unread),
-                  _NavItem(icon: Icons.settings_rounded,      label: 'ការកំណត់',   index: 4, current: _currentIndex, onTap: _switchTab),
+                  _NavItem(icon: Icons.dashboard_rounded,        label: 'ផ្ទាំងគ្រប់គ្រង', index: 0, current: _currentIndex, onTap: _switchTab),
+                  _NavItem(icon: Icons.campaign_rounded,         label: 'ការផ្សព្វផ្សាយ',  index: 1, current: _currentIndex, onTap: _switchTab),
+                  _NavItem(icon: Icons.people_alt_rounded,       label: 'អ្នកប្រើ',         index: 2, current: _currentIndex, onTap: _switchTab),
+                  _NavItem(icon: Icons.chat_rounded,             label: 'ការសន្ទនា',        index: 3, current: _currentIndex, onTap: _switchTab, badge: unread),
+                  _NavItem(icon: Icons.settings_rounded,         label: 'ការកំណត់',         index: 4, current: _currentIndex, onTap: _switchTab),
                 ],
               ),
             ),
@@ -233,20 +239,17 @@ class _DashboardTab extends StatelessWidget {
     return Consumer2<AppProvider, ChatProvider>(
       builder: (context, appProv, chatProv, _) {
         final myUid = context.read<AuthProvider>().currentUser?.uid ?? FirebaseAuth.instance.currentUser?.uid ?? '';
-        final totalJobs = appProv.tractorJobs.length + appProv.droneJobs.length;
-        final pending = appProv.pendingTractorJobs.length + appProv.pendingDroneJobs.length;
-        final confirmed = appProv.tractorJobs.where((j) => j.status == 'confirmed').length
-            + appProv.droneJobs.where((j) => j.status == 'confirmed').length;
-        final completed = appProv.tractorJobs.where((j) => j.status == 'completed').length
-            + appProv.droneJobs.where((j) => j.status == 'completed').length;
+        final requests = appProv.serviceRequests;
+        final totalJobs = requests.length;
+        final pending = requests.where((r) => r.status == 'pending').length;
+        final confirmed = requests.where((r) => r.status == 'accepted').length;
+        final completed = requests.where((r) => r.status == 'completed').length;
 
         return CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // ── Hero header ────────────────────────────────────────────────
             SliverToBoxAdapter(child: _buildHeader(context, myUid, chatProv)),
 
-            // ── User overview (dynamic, live from Firestore) ────────────────
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
               sliver: SliverToBoxAdapter(
@@ -284,7 +287,6 @@ class _DashboardTab extends StatelessWidget {
               ),
             ),
 
-            // ── KPI cards (jobs) ─────────────────────────────────────────────
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
               sliver: SliverToBoxAdapter(
@@ -301,7 +303,7 @@ class _DashboardTab extends StatelessWidget {
                     ]),
                     const SizedBox(height: 10),
                     Row(children: [
-                      Expanded(child: _KpiCard(value: '$confirmed', label: 'បានបញ្ជាក់', icon: Icons.check_circle_rounded, color: _kAccentGreen)),
+                      Expanded(child: _KpiCard(value: '$confirmed', label: 'បានទទួល', icon: Icons.check_circle_rounded, color: _kAccentGreen)),
                       const SizedBox(width: 10),
                       Expanded(child: _KpiCard(value: '$completed', label: 'បានបញ្ចប់', icon: Icons.task_alt_rounded, color: _kAccentCyan)),
                     ]),
@@ -310,7 +312,6 @@ class _DashboardTab extends StatelessWidget {
               ),
             ),
 
-            // ── Quick actions ──────────────────────────────────────────────
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
               sliver: SliverToBoxAdapter(
@@ -320,13 +321,13 @@ class _DashboardTab extends StatelessWidget {
                     _sectionTitle('ដំណើរការរហ័ស'),
                     const SizedBox(height: 12),
                     Row(children: [
-                      _QuickAction(icon: Icons.assignment_late_rounded, label: 'ការស្នើសុំ\nរង់ចាំ', color: _kAccentAmber, count: pending, onTap: () => onSwitchTab(1)),
+                      _QuickAction(icon: Icons.campaign_rounded,         label: 'ការផ្សព្វ\nផ្សាយ',  color: _kAccentAmber,  onTap: () => onSwitchTab(1)),
                       const SizedBox(width: 10),
-                      _QuickAction(icon: Icons.people_alt_rounded,      label: 'អ្នកប្រើ\nប្រាស់',  color: _kAccentPurple, onTap: () => onSwitchTab(2)),
+                      _QuickAction(icon: Icons.people_alt_rounded,       label: 'អ្នកប្រើ\nប្រាស់', color: _kAccentPurple, onTap: () => onSwitchTab(2)),
                       const SizedBox(width: 10),
-                      _QuickAction(icon: Icons.chat_rounded,            label: 'ការ\nសន្ទនា',    color: _kAccentCyan,   onTap: () => onSwitchTab(3)),
+                      _QuickAction(icon: Icons.chat_rounded,             label: 'ការ\nសន្ទនា',   color: _kAccentCyan,   onTap: () => onSwitchTab(3)),
                       const SizedBox(width: 10),
-                      _QuickAction(icon: Icons.bar_chart_rounded,       label: 'ស្ថិតិ\nព័ត៌មាន',  color: _kAccentGreen,  onTap: () => Navigator.push(context,
+                      _QuickAction(icon: Icons.bar_chart_rounded,        label: 'ស្ថិតិ\nព័ត៌មាន', color: _kAccentGreen,  onTap: () => Navigator.push(context,
                         MaterialPageRoute(builder: (_) => const AdminStatisticsScreen()),
                       )),
                     ]),
@@ -335,84 +336,10 @@ class _DashboardTab extends StatelessWidget {
               ),
             ),
 
-            // ── Service breakdown ──────────────────────────────────────────
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
               sliver: SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _sectionTitle('ការបែងចែកសេវាកម្ម'),
-                    const SizedBox(height: 12),
-                    _ServiceBreakdownCard(appProv: appProv),
-                  ],
-                ),
-              ),
-            ),
-
-            // ── Pending jobs ───────────────────────────────────────────────
-            if (pending > 0) ...[
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
-                sliver: SliverToBoxAdapter(
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      _sectionTitle('ការស្នើសុំរង់ចាំ'),
-                      GestureDetector(
-                        onTap: () => onSwitchTab(1),
-                        child: const Text('មើលទាំងអស់ →',
-                          style: TextStyle(fontSize: 12, color: _kAccentBlue)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (ctx, i) {
-                      final tractorPending = appProv.pendingTractorJobs;
-                      final dronePending = appProv.pendingDroneJobs;
-                      final all = [
-                        ...tractorPending.map((j) => _PendingJobItem(
-                          emoji: '🚜', title: j.serviceType, farmer: j.farmerName,
-                          location: j.location, date: j.scheduledDate,
-                          area: j.areaHectares, type: 'tractor', id: j.id,
-                          appProv: appProv,
-                        )),
-                        ...dronePending.map((j) => _PendingJobItem(
-                          emoji: '🛸', title: '${j.cropType} — ${j.pesticide}', farmer: j.farmerName,
-                          location: j.location, date: j.scheduledDate,
-                          area: j.areaHectares, type: 'drone', id: j.id,
-                          appProv: appProv,
-                        )),
-                      ];
-                      if (i >= all.length) return null;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: all[i],
-                      );
-                    },
-                    childCount: appProv.pendingTractorJobs.length + appProv.pendingDroneJobs.length,
-                  ),
-                ),
-              ),
-            ],
-
-            // ── Activity log ───────────────────────────────────────────────
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
-              sliver: SliverToBoxAdapter(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _sectionTitle('សកម្មភាពចុងក្រោយ'),
-                    const SizedBox(height: 12),
-                    _ActivityLogCard(appProv: appProv),
-                  ],
-                ),
+                child: _LiveActivityCard(appProv: appProv),
               ),
             ),
 
@@ -445,7 +372,6 @@ class _DashboardTab extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Avatar
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
                 child: Container(
@@ -496,8 +422,6 @@ class _DashboardTab extends StatelessWidget {
                   ],
                 ),
               ),
-              // Notification bell — jumps to the Chat tab where all
-              // user messages (including problem reports) land.
               StreamBuilder<int>(
                 stream: chatProv.totalUnreadStream(myUid),
                 builder: (ctx, snap) {
@@ -538,7 +462,6 @@ class _DashboardTab extends StatelessWidget {
 
           const SizedBox(height: 16),
 
-          // Status bar — admin system status
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
             decoration: BoxDecoration(
@@ -703,318 +626,101 @@ class _QuickAction extends StatelessWidget {
   }
 }
 
-// ─── Service breakdown card ───────────────────────────────────────────────────
+// ─── Live activity card (reads from serviceRequests) ────────────────────────
 
-class _ServiceBreakdownCard extends StatelessWidget {
+class _LiveActivityCard extends StatelessWidget {
   final AppProvider appProv;
-  const _ServiceBreakdownCard({required this.appProv});
+  const _LiveActivityCard({required this.appProv});
 
   @override
   Widget build(BuildContext context) {
-    final tractor = appProv.tractorJobs.length;
-    final drone = appProv.droneJobs.length;
-    final total = tractor + drone;
-    final tractorPct = total == 0 ? 0.0 : tractor / total;
-
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: _kSurface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: _kBorder),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Expanded(child: _BreakdownItem(
-                emoji: '🚜', label: 'ត្រាក់ទ័រ', count: tractor,
-                color: _kAccentGreen, pct: tractorPct)),
-              Container(width: 1, height: 40, color: _kBorder),
-              Expanded(child: _BreakdownItem(
-                emoji: '🛸', label: 'ដ្រូន', count: drone,
-                color: _kAccentCyan, pct: 1 - tractorPct)),
-            ],
-          ),
-          const SizedBox(height: 14),
-          // Progress bar
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: Row(
-              children: [
-                Flexible(
-                  flex: (tractorPct * 100).round().clamp(1, 99),
-                  child: Container(height: 8, color: _kAccentGreen),
-                ),
-                Flexible(
-                  flex: ((1 - tractorPct) * 100).round().clamp(1, 99),
-                  child: Container(height: 8, color: _kAccentCyan),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(children: [
-                Container(width: 8, height: 8, decoration: BoxDecoration(
-                  color: _kAccentGreen, borderRadius: BorderRadius.circular(2))),
-                const SizedBox(width: 5),
-                Text('ត្រាក់ទ័រ ${(tractorPct * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(fontSize: 10, color: _kTextSecondary)),
-              ]),
-              Row(children: [
-                Container(width: 8, height: 8, decoration: BoxDecoration(
-                  color: _kAccentCyan, borderRadius: BorderRadius.circular(2))),
-                const SizedBox(width: 5),
-                Text('ដ្រូន ${((1-tractorPct) * 100).toStringAsFixed(0)}%',
-                  style: const TextStyle(fontSize: 10, color: _kTextSecondary)),
-              ]),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BreakdownItem extends StatelessWidget {
-  final String emoji, label;
-  final int count;
-  final Color color;
-  final double pct;
-
-  const _BreakdownItem({required this.emoji, required this.label,
-    required this.count, required this.color, required this.pct});
-
-  @override
-  Widget build(BuildContext context) => Column(
-    children: [
-      Text(emoji, style: const TextStyle(fontSize: 26)),
-      const SizedBox(height: 4),
-      Text('$count', style: TextStyle(
-        fontSize: 22, fontWeight: FontWeight.w800, color: color)),
-      Text(label, style: const TextStyle(fontSize: 11, color: _kTextSecondary)),
-    ],
-  );
-}
-
-// ─── Pending job item ─────────────────────────────────────────────────────────
-
-class _PendingJobItem extends StatelessWidget {
-  final String emoji, title, farmer, location, date, type, id;
-  final double area;
-  final AppProvider appProv;
-
-  const _PendingJobItem({
-    required this.emoji, required this.title, required this.farmer,
-    required this.location, required this.date, required this.area,
-    required this.type, required this.id, required this.appProv,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: _kSurface,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: _kAccentAmber.withOpacity(0.3)),
-      ),
-      child: Column(
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 44, height: 44,
-                decoration: BoxDecoration(
-                  color: _kAccentAmber.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(12)),
-                child: Center(child: Text(emoji, style: const TextStyle(fontSize: 22))),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title,
-                      style: const TextStyle(
-                        fontSize: 13, fontWeight: FontWeight.w700,
-                        color: _kTextPrimary)),
-                    const SizedBox(height: 2),
-                    Text(farmer,
-                      style: const TextStyle(fontSize: 11, color: _kTextSecondary)),
-                  ],
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: _kAccentAmber.withOpacity(0.15),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: _kAccentAmber.withOpacity(0.4))),
-                child: const Text('រង់ចាំ',
-                  style: TextStyle(
-                    fontSize: 10, fontWeight: FontWeight.w700,
-                    color: _kAccentAmber)),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Row(children: [
-            const Icon(Icons.location_on_outlined, size: 13, color: _kTextMuted),
-            const SizedBox(width: 4),
-            Expanded(child: Text(location,
-              style: const TextStyle(fontSize: 11, color: _kTextSecondary))),
-            const Icon(Icons.calendar_today_outlined, size: 13, color: _kTextMuted),
-            const SizedBox(width: 4),
-            Text(date, style: const TextStyle(fontSize: 11, color: _kTextSecondary)),
-            const SizedBox(width: 8),
-            const Icon(Icons.crop_square_outlined, size: 13, color: _kTextMuted),
-            const SizedBox(width: 4),
-            Text('$area ហិចតា',
-              style: const TextStyle(fontSize: 11, color: _kTextSecondary)),
-          ]),
-          const SizedBox(height: 12),
-          Row(children: [
-            Expanded(
-              child: _ActionBtn(
-                label: 'បោះបង់', color: _kAccentRed,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  if (type == 'tractor') appProv.updateTractorJobStatus(id, 'cancelled');
-                  else appProv.updateDroneJobStatus(id, 'cancelled');
-                },
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: _ActionBtn(
-                label: 'បញ្ជាក់ ✓', color: _kAccentGreen, filled: true,
-                onTap: () {
-                  HapticFeedback.lightImpact();
-                  if (type == 'tractor') appProv.updateTractorJobStatus(id, 'confirmed');
-                  else appProv.updateDroneJobStatus(id, 'confirmed');
-                },
-              ),
-            ),
-          ]),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActionBtn extends StatelessWidget {
-  final String label;
-  final Color color;
-  final bool filled;
-  final VoidCallback onTap;
-
-  const _ActionBtn({required this.label, required this.color,
-    required this.onTap, this.filled = false});
-
-  @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: Container(
-      height: 36,
-      decoration: BoxDecoration(
-        color: filled ? color : color.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: color.withOpacity(filled ? 0 : 0.4)),
-      ),
-      child: Center(
-        child: Text(label,
-          style: TextStyle(
-            fontSize: 12, fontWeight: FontWeight.w700,
-            color: filled ? Colors.white : color)),
-      ),
-    ),
-  );
-}
-
-// ─── Activity log card ────────────────────────────────────────────────────────
-
-class _ActivityLogCard extends StatelessWidget {
-  final AppProvider appProv;
-  const _ActivityLogCard({required this.appProv});
-
-  @override
-  Widget build(BuildContext context) {
-    // Build a combined sorted list of recent activity from jobs
-    final allTractor = appProv.tractorJobs;
-    final allDrone   = appProv.droneJobs;
-
-    // Show last 5 confirmed/cancelled/completed actions
-    final recent = [
-      ...allTractor.where((j) => j.status != 'pending')
-          .map((j) => _ActivityEntry(
-            emoji: '🚜', title: '${j.serviceType} — ${j.farmerName}',
-            status: j.status, time: j.createdAt)),
-      ...allDrone.where((j) => j.status != 'pending')
-          .map((j) => _ActivityEntry(
-            emoji: '🛸', title: '${j.cropType} — ${j.farmerName}',
-            status: j.status, time: j.createdAt)),
-    ]..sort((a, b) => b.time.compareTo(a.time));
-
-    if (recent.isEmpty) {
-      return Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: _kSurface, borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: _kBorder)),
-        child: const Center(
-          child: Text('មិនទាន់មានសកម្មភាព',
-            style: TextStyle(color: _kTextMuted, fontSize: 13)),
-        ),
-      );
-    }
+    final all = appProv.serviceRequests
+        .where((r) => r.status != 'pending')
+        .toList()
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
     return Container(
       decoration: BoxDecoration(
         color: _kSurface, borderRadius: BorderRadius.circular(16),
         border: Border.all(color: _kBorder)),
       child: Column(
-        children: recent.take(5).toList().asMap().entries.map((e) {
-          final i = e.key;
-          final entry = e.value;
-          final isLast = i == (recent.length > 5 ? 4 : recent.length - 1);
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-                child: Row(
-                  children: [
-                    Text(entry.emoji, style: const TextStyle(fontSize: 20)),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(entry.title,
-                            maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 12, fontWeight: FontWeight.w600,
-                              color: _kTextPrimary)),
-                          const SizedBox(height: 2),
-                          Text(_timeAgo(entry.time),
-                            style: const TextStyle(
-                              fontSize: 10, color: _kTextMuted)),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    _StatusChip(status: entry.status),
-                  ],
-                ),
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(14, 14, 14, 0),
+            child: Row(
+              children: [
+                const Icon(Icons.access_time_rounded, size: 18, color: _kAccentCyan),
+                const SizedBox(width: 8),
+                const Text('សកម្មភាពចុងក្រោយ',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: _kTextPrimary)),
+              ],
+            ),
+          ),
+          if (all.isEmpty)
+            const Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(
+                child: Text('មិនទាន់មានសកម្មភាព',
+                    style: TextStyle(color: _kTextMuted, fontSize: 13)),
               ),
-              if (!isLast)
-                const Divider(height: 1, color: _kBorder, indent: 46),
-            ],
-          );
-        }).toList(),
+            )
+          else
+            ...List.generate(all.length > 5 ? 5 : all.length, (i) {
+              final r = all[i];
+              final isLast = i == (all.length > 5 ? 4 : all.length - 1);
+              final info = ServiceTypes.infoOf(r.serviceType);
+              final label = info['label'] as String? ?? r.serviceType;
+              return Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32, height: 32,
+                          decoration: BoxDecoration(
+                            color: (info['color'] as Color? ?? _kAccentBlue).withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(8)),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: Image.asset(
+                              _serviceImages[r.serviceType] ?? 'assets/images/app_icon.png',
+                              width: 32, height: 32, fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Icon(
+                                info['icon'] as IconData? ?? Icons.work_outline,
+                                color: info['color'] as Color? ?? _kAccentBlue, size: 16),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('$label — ${r.farmerName}',
+                                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 12, fontWeight: FontWeight.w600,
+                                      color: _kTextPrimary)),
+                              const SizedBox(height: 2),
+                              Text(_timeAgo(r.createdAt),
+                                  style: const TextStyle(
+                                      fontSize: 10, color: _kTextMuted)),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        _StatusChip(status: r.status),
+                      ],
+                    ),
+                  ),
+                  if (!isLast)
+                    const Divider(height: 1, color: _kBorder, indent: 58),
+                ],
+              );
+            }),
+        ],
       ),
     );
   }
@@ -1022,16 +728,9 @@ class _ActivityLogCard extends StatelessWidget {
   String _timeAgo(DateTime dt) {
     final diff = DateTime.now().difference(dt);
     if (diff.inMinutes < 60) return '${diff.inMinutes} នាទីមុន';
-    if (diff.inHours < 24)   return '${diff.inHours} ម៉ោងមុន';
+    if (diff.inHours < 24) return '${diff.inHours} ម៉ោងមុន';
     return '${diff.inDays} ថ្ងៃមុន';
   }
-}
-
-class _ActivityEntry {
-  final String emoji, title, status;
-  final DateTime time;
-  const _ActivityEntry({required this.emoji, required this.title,
-    required this.status, required this.time});
 }
 
 class _StatusChip extends StatelessWidget {
@@ -1059,269 +758,774 @@ class _StatusChip extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TAB 1 — JOBS
+// TAB 1 — PROMOTIONS (replaces old Jobs/Requests tab)
 // ═══════════════════════════════════════════════════════════════════════════════
 
-class _JobsTab extends StatefulWidget {
-  const _JobsTab();
-  @override
-  State<_JobsTab> createState() => _JobsTabState();
+/// Promotion model
+class _PromoModel {
+  final String id;
+  final String tag;
+  final String title;
+  final String subtitle;
+  final Color accentColor;
+  final String iconName;
+  final DateTime createdAt;
+  final bool isActive;
+
+  const _PromoModel({
+    required this.id,
+    required this.tag,
+    required this.title,
+    required this.subtitle,
+    required this.accentColor,
+    required this.iconName,
+    required this.createdAt,
+    required this.isActive,
+  });
+
+  factory _PromoModel.fromDoc(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>;
+    return _PromoModel(
+      id: doc.id,
+      tag: d['tag'] ?? '',
+      title: d['title'] ?? '',
+      subtitle: d['subtitle'] ?? '',
+      accentColor: Color(d['accentColor'] ?? 0xFFFF7043),
+      iconName: d['iconName'] ?? 'verified',
+      createdAt: (d['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      isActive: d['isActive'] ?? true,
+    );
+  }
 }
 
-class _JobsTabState extends State<_JobsTab> with SingleTickerProviderStateMixin {
-  late final TabController _tabCtrl;
-  String _filter = 'all'; // all | pending | confirmed | completed | cancelled
+// Accent colour presets shown in the form
+const List<Map<String, dynamic>> _kColorPresets = [
+  {'label': 'ទឹកក្រូច', 'color': Color(0xFFFF7043)},
+  {'label': 'បخضر',      'color': Color(0xFF66BB6A)},
+  {'label': 'ខៀវ',       'color': Color(0xFF42A5F5)},
+  {'label': 'មាស',       'color': Color(0xFFFFC107)},
+  {'label': 'ស្វាយ',     'color': Color(0xFFAB47BC)},
+  {'label': 'ក្រហម',     'color': Color(0xFFEF5350)},
+];
 
-  @override
-  void initState() {
-    super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
-  }
+// Icon presets
+const List<Map<String, dynamic>> _kIconPresets = [
+  {'name': 'verified',    'icon': Icons.verified_outlined},
+  {'name': 'agriculture', 'icon': Icons.agriculture_outlined},
+  {'name': 'campaign',    'icon': Icons.campaign_outlined},
+  {'name': 'star',        'icon': Icons.star_outline},
+  {'name': 'discount',    'icon': Icons.discount_outlined},
+  {'name': 'bolt',        'icon': Icons.bolt_outlined},
+];
 
+IconData _iconFromName(String name) {
+  final found = _kIconPresets.firstWhere(
+    (e) => e['name'] == name,
+    orElse: () => _kIconPresets.first,
+  );
+  return found['icon'] as IconData;
+}
+
+class _PromotionTab extends StatefulWidget {
+  const _PromotionTab();
   @override
-  void dispose() { _tabCtrl.dispose(); super.dispose(); }
+  State<_PromotionTab> createState() => _PromotionTabState();
+}
+
+class _PromotionTabState extends State<_PromotionTab> {
+  bool _showForm = false;
 
   @override
   Widget build(BuildContext context) {
-    return Consumer<AppProvider>(builder: (ctx, appProv, _) {
-      return Column(
-        children: [
-          // Header
-          Container(
-            color: _kNavyMid,
-            padding: EdgeInsets.fromLTRB(
-              16, MediaQuery.of(context).padding.top + 12, 16, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('ការស្នើសុំ',
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
-                    color: _kTextPrimary)),
-                const SizedBox(height: 12),
-                // Status filter chips
-                SingleChildScrollView(
-                  scrollDirection: Axis.horizontal,
-                  child: Row(
-                    children: ['all','pending','confirmed','completed','cancelled']
-                        .map((s) => _FilterChip(
-                          label: _filterLabel(s), value: s,
-                          selected: _filter == s,
-                          onTap: () => setState(() => _filter = s),
-                        ))
-                        .toList(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TabBar(
-                  controller: _tabCtrl,
-                  labelColor: _kAccentBlue,
-                  unselectedLabelColor: _kTextMuted,
-                  indicatorColor: _kAccentBlue,
-                  indicatorSize: TabBarIndicatorSize.label,
-                  dividerColor: _kBorder,
-                  tabs: const [
-                    Tab(text: '🚜  ត្រាក់ទ័រ'),
-                    Tab(text: '🛸  ដ្រូន'),
+    return Column(
+      children: [
+        // ── Header ────────────────────────────────────────────────────────
+        Container(
+          color: _kNavyMid,
+          padding: EdgeInsets.fromLTRB(
+            16, MediaQuery.of(context).padding.top + 12, 16, 16),
+          child: Row(
+            children: [
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('ការផ្សព្វផ្សាយ',
+                      style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800,
+                        color: _kTextPrimary)),
+                    SizedBox(height: 2),
+                    Text('ផ្ញើទៅកសិករទាំងអស់ភ្លាមៗ',
+                      style: TextStyle(fontSize: 11, color: _kTextSecondary)),
                   ],
                 ),
-              ],
-            ),
+              ),
+              GestureDetector(
+                onTap: () => setState(() => _showForm = !_showForm),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+                  decoration: BoxDecoration(
+                    color: _showForm
+                        ? _kAccentRed.withOpacity(0.15)
+                        : _kAccentAmber.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _showForm
+                          ? _kAccentRed.withOpacity(0.4)
+                          : _kAccentAmber.withOpacity(0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        _showForm ? Icons.close_rounded : Icons.add_rounded,
+                        color: _showForm ? _kAccentRed : _kAccentAmber,
+                        size: 18),
+                      const SizedBox(width: 6),
+                      Text(
+                        _showForm ? 'បិទ' : 'បន្ថែម',
+                        style: TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w700,
+                          color: _showForm ? _kAccentRed : _kAccentAmber),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
+        ),
 
-          Expanded(
-            child: TabBarView(
-              controller: _tabCtrl,
-              children: [
-                _JobList(
-                  jobs: _filtered(appProv.tractorJobs),
-                  type: 'tractor', appProv: appProv),
-                _JobList(
-                  jobs: _filtered(appProv.droneJobs),
-                  type: 'drone', appProv: appProv),
-              ],
-            ),
+        Expanded(
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              // ── Create form (collapsible) ─────────────────────────────
+              AnimatedSize(
+                duration: const Duration(milliseconds: 300),
+                curve: Curves.easeInOut,
+                child: _showForm
+                    ? _CreatePromoForm(
+                        onCreated: () => setState(() => _showForm = false),
+                      )
+                    : const SizedBox.shrink(),
+              ),
+
+              if (_showForm) const SizedBox(height: 20),
+
+              // ── Live promo list ───────────────────────────────────────
+              _sectionTitle('ការផ្សព្វផ្សាយទាំងអស់'),
+              const SizedBox(height: 12),
+              _PromoList(),
+            ],
           ),
-        ],
-      );
-    });
-  }
-
-  List _filtered(List jobs) {
-    if (_filter == 'all') return jobs;
-    return jobs.where((j) => j.status == _filter).toList();
-  }
-
-  String _filterLabel(String s) {
-    switch (s) {
-      case 'all': return 'ទាំងអស់';
-      case 'pending': return 'រង់ចាំ';
-      case 'confirmed': return 'បញ្ជាក់';
-      case 'completed': return 'បញ្ចប់';
-      case 'cancelled': return 'បោះបង់';
-      default: return s;
-    }
+        ),
+      ],
+    );
   }
 }
 
-class _FilterChip extends StatelessWidget {
-  final String label, value;
-  final bool selected;
-  final VoidCallback onTap;
+// ─── Create Promo Form ────────────────────────────────────────────────────────
 
-  const _FilterChip({required this.label, required this.value,
-    required this.selected, required this.onTap});
+class _CreatePromoForm extends StatefulWidget {
+  final VoidCallback onCreated;
+  const _CreatePromoForm({required this.onCreated});
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: onTap,
-    child: AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      margin: const EdgeInsets.only(right: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+  State<_CreatePromoForm> createState() => _CreatePromoFormState();
+}
+
+class _CreatePromoFormState extends State<_CreatePromoForm> {
+  final _tagCtrl      = TextEditingController();
+  final _titleCtrl    = TextEditingController();
+  final _subtitleCtrl = TextEditingController();
+
+  Color _selectedColor = const Color(0xFFFF7043);
+  String _selectedIcon = 'verified';
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _tagCtrl.dispose();
+    _titleCtrl.dispose();
+    _subtitleCtrl.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    final tag      = _tagCtrl.text.trim();
+    final title    = _titleCtrl.text.trim();
+    final subtitle = _subtitleCtrl.text.trim();
+
+    if (tag.isEmpty || title.isEmpty || subtitle.isEmpty) {
+      setState(() => _error = 'សូមបំពេញព័ត៌មានទាំងអស់');
+      return;
+    }
+
+    setState(() { _submitting = true; _error = null; });
+
+    try {
+      await FirebaseFirestore.instance.collection('promotions').add({
+        'tag':         tag,
+        'title':       title,
+        'subtitle':    subtitle,
+        'accentColor': _selectedColor.value,
+        'iconName':    _selectedIcon,
+        'isActive':    true,
+        'createdAt':   FieldValue.serverTimestamp(),
+      });
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('បានបន្ថែមការផ្សព្វផ្សាយ ✓  — កសិករទាំងអស់ទទួលបានដោយស្វ័យប្រវត្តិ'),
+            backgroundColor: _kAccentGreen,
+          ),
+        );
+        widget.onCreated();
+      }
+    } catch (e) {
+      setState(() { _submitting = false; _error = 'មានបញ្ហា: $e'; });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        color: selected ? _kAccentBlue : _kSurface,
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: selected ? _kAccentBlue : _kBorder)),
-      child: Text(label,
-        style: TextStyle(
-          fontSize: 12, fontWeight: FontWeight.w600,
-          color: selected ? Colors.white : _kTextSecondary)),
+        color: _kSurface,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: _kAccentAmber.withOpacity(0.35)),
+        boxShadow: [
+          BoxShadow(color: _kAccentAmber.withOpacity(0.08),
+            blurRadius: 16, offset: const Offset(0, 4)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Form title
+          Row(
+            children: [
+              Container(
+                width: 36, height: 36,
+                decoration: BoxDecoration(
+                  color: _kAccentAmber.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.campaign_rounded, color: _kAccentAmber, size: 20),
+              ),
+              const SizedBox(width: 10),
+              const Expanded(
+                child: Text('បង្កើតការផ្សព្វផ្សាយថ្មី',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800, color: _kTextPrimary)),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+
+          // Live preview card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+                begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: _selectedColor,
+                          borderRadius: BorderRadius.circular(6)),
+                        child: Text(
+                          _tagCtrl.text.isEmpty ? 'ស្លាក...' : _tagCtrl.text,
+                          style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
+                      ),
+                      const SizedBox(height: 7),
+                      Text(
+                        _titleCtrl.text.isEmpty ? 'ចំណងជើង...' : _titleCtrl.text,
+                        maxLines: 2,
+                        style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w700, height: 1.35)),
+                      const SizedBox(height: 5),
+                      Text(
+                        _subtitleCtrl.text.isEmpty ? 'អនុចំណងជើង...' : _subtitleCtrl.text,
+                        style: const TextStyle(color: Colors.white60, fontSize: 11)),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Container(
+                  width: 52, height: 52,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(14)),
+                  child: Icon(_iconFromName(_selectedIcon), color: Colors.white70, size: 28),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+
+          // ── Tag ──
+          _FormLabel('ស្លាក (Tag)'),
+          const SizedBox(height: 6),
+          _FormField(
+            controller: _tagCtrl,
+            hint: 'ឧ. ចំណេញ ១០០%  ·  ថ្មី  ·  បញ្ចុះតម្លៃ',
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 14),
+
+          // ── Title ──
+          _FormLabel('ចំណងជើង'),
+          const SizedBox(height: 6),
+          _FormField(
+            controller: _titleCtrl,
+            hint: 'ឧ. ជួលត្រាក់ទ័រ Kubota តម្លៃពិសេស',
+            maxLines: 2,
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 14),
+
+          // ── Subtitle ──
+          _FormLabel('អនុចំណងជើង'),
+          const SizedBox(height: 6),
+          _FormField(
+            controller: _subtitleCtrl,
+            hint: 'ឧ. ធ្វើការ · ABA · KHQR',
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: 18),
+
+          // ── Colour picker ──
+          _FormLabel('ពណ៌ស្លាក'),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10, runSpacing: 10,
+            children: _kColorPresets.map((preset) {
+              final c = preset['color'] as Color;
+              final selected = c.value == _selectedColor.value;
+              return GestureDetector(
+                onTap: () => setState(() => _selectedColor = c),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 38, height: 38,
+                  decoration: BoxDecoration(
+                    color: c,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: selected ? Colors.white : Colors.transparent,
+                      width: 3),
+                    boxShadow: selected
+                        ? [BoxShadow(color: c.withOpacity(0.5), blurRadius: 8)]
+                        : [],
+                  ),
+                  child: selected
+                      ? const Icon(Icons.check, color: Colors.white, size: 18)
+                      : null,
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 18),
+
+          // ── Icon picker ──
+          _FormLabel('រូបតំណាង'),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10, runSpacing: 10,
+            children: _kIconPresets.map((preset) {
+              final name = preset['name'] as String;
+              final icon = preset['icon'] as IconData;
+              final selected = name == _selectedIcon;
+              return GestureDetector(
+                onTap: () => setState(() => _selectedIcon = name),
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 150),
+                  width: 48, height: 48,
+                  decoration: BoxDecoration(
+                    color: selected
+                        ? _kAccentAmber.withOpacity(0.2)
+                        : _kNavyMid,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: selected ? _kAccentAmber : _kBorder),
+                  ),
+                  child: Icon(icon,
+                    color: selected ? _kAccentAmber : _kTextMuted,
+                    size: 22),
+                ),
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 20),
+
+          if (_error != null) ...[
+            Text(_error!, style: const TextStyle(color: _kAccentRed, fontSize: 12)),
+            const SizedBox(height: 12),
+          ],
+
+          // ── Submit button ──
+          SizedBox(
+            width: double.infinity,
+            height: 50,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: _kAccentAmber,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 0,
+              ),
+              onPressed: _submitting ? null : _submit,
+              child: _submitting
+                  ? const SizedBox(width: 22, height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white))
+                  : const Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.send_rounded, color: Colors.white, size: 18),
+                        SizedBox(width: 8),
+                        Text('ផ្ញើទៅកសិករទាំងអស់',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700)),
+                      ],
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FormLabel extends StatelessWidget {
+  final String text;
+  const _FormLabel(this.text);
+  @override
+  Widget build(BuildContext context) => Text(text,
+    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+      color: _kTextSecondary));
+}
+
+class _FormField extends StatelessWidget {
+  final TextEditingController controller;
+  final String hint;
+  final int maxLines;
+  final void Function(String) onChanged;
+
+  const _FormField({
+    required this.controller,
+    required this.hint,
+    this.maxLines = 1,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) => TextField(
+    controller: controller,
+    maxLines: maxLines,
+    onChanged: onChanged,
+    style: const TextStyle(color: _kTextPrimary, fontSize: 13),
+    decoration: InputDecoration(
+      hintText: hint,
+      hintStyle: const TextStyle(color: _kTextMuted, fontSize: 12),
+      filled: true,
+      fillColor: _kNavyMid,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _kBorder)),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _kBorder)),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: _kAccentAmber)),
     ),
   );
 }
 
-class _JobList extends StatelessWidget {
-  final List jobs;
-  final String type;
-  final AppProvider appProv;
+// ─── Live promo list (from Firestore) ─────────────────────────────────────────
 
-  const _JobList({required this.jobs, required this.type, required this.appProv});
-
+class _PromoList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    if (jobs.isEmpty) {
-      return const Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('📋', style: TextStyle(fontSize: 40)),
-            SizedBox(height: 10),
-            Text('មិនមានការស្នើសុំ',
-              style: TextStyle(color: _kTextMuted, fontSize: 13)),
-          ],
-        ),
-      );
-    }
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('promotions')
+          .orderBy('createdAt', descending: true)
+          .snapshots(),
+      builder: (context, snap) {
+        if (snap.connectionState == ConnectionState.waiting) {
+          return const Center(
+            child: Padding(
+              padding: EdgeInsets.all(32),
+              child: CircularProgressIndicator(color: _kAccentAmber),
+            ),
+          );
+        }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: jobs.length,
-      itemBuilder: (ctx, i) {
-        final job = jobs[i];
-        final isTractor = type == 'tractor';
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: Container(
-            padding: const EdgeInsets.all(14),
+        final docs = snap.data?.docs ?? [];
+        if (docs.isEmpty) {
+          return Container(
+            padding: const EdgeInsets.all(32),
             decoration: BoxDecoration(
-              color: _kSurface, borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: _kBorder)),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              color: _kSurface,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: _kBorder),
+            ),
+            child: const Column(
               children: [
-                Row(
-                  children: [
-                    Text(isTractor ? '🚜' : '🛸',
-                      style: const TextStyle(fontSize: 20)),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(isTractor ? job.serviceType
-                              : '${job.cropType} — ${job.pesticide}',
-                            style: const TextStyle(
-                              fontSize: 13, fontWeight: FontWeight.w700,
-                              color: _kTextPrimary)),
-                          Text(job.farmerName,
-                            style: const TextStyle(
-                              fontSize: 11, color: _kTextSecondary)),
-                        ],
-                      ),
-                    ),
-                    _StatusChip(status: job.status),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                Wrap(spacing: 16, runSpacing: 4, children: [
-                  _InfoPill(icon: Icons.location_on_outlined, text: job.location),
-                  _InfoPill(icon: Icons.calendar_today_outlined,
-                    text: '${job.scheduledDate} ${job.scheduledTime}'),
-                  _InfoPill(icon: Icons.crop_square_outlined,
-                    text: '${job.areaHectares} ហិចតា'),
-                ]),
-                if (job.notes != null && job.notes!.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  _InfoPill(icon: Icons.notes_outlined, text: job.notes!),
-                ],
-                if (job.status == 'pending') ...[
-                  const SizedBox(height: 12),
-                  Row(children: [
-                    Expanded(
-                      child: _ActionBtn(
-                        label: 'បោះបង់', color: _kAccentRed,
-                        onTap: () => isTractor
-                          ? appProv.updateTractorJobStatus(job.id, 'cancelled')
-                          : appProv.updateDroneJobStatus(job.id, 'cancelled'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _ActionBtn(
-                        label: 'បញ្ជាក់ ✓', color: _kAccentGreen, filled: true,
-                        onTap: () => isTractor
-                          ? appProv.updateTractorJobStatus(job.id, 'confirmed')
-                          : appProv.updateDroneJobStatus(job.id, 'confirmed'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _ActionBtn(
-                        label: 'បញ្ចប់', color: _kAccentBlue, filled: true,
-                        onTap: () => isTractor
-                          ? appProv.updateTractorJobStatus(job.id, 'completed')
-                          : appProv.updateDroneJobStatus(job.id, 'completed'),
-                      ),
-                    ),
-                  ]),
-                ],
+                Text('📢', style: TextStyle(fontSize: 36)),
+                SizedBox(height: 12),
+                Text('មិនទាន់មានការផ្សព្វផ្សាយ',
+                  style: TextStyle(color: _kTextMuted, fontSize: 13)),
+                SizedBox(height: 4),
+                Text('ចុច «បន្ថែម» ដើម្បីបង្កើតការផ្សព្វផ្សាយដំបូង',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: _kTextMuted, fontSize: 11, height: 1.5)),
               ],
             ),
-          ),
+          );
+        }
+
+        return Column(
+          children: docs.map((doc) {
+            final promo = _PromoModel.fromDoc(doc);
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: _PromoCard(promo: promo),
+            );
+          }).toList(),
         );
       },
     );
   }
 }
 
-class _InfoPill extends StatelessWidget {
-  final IconData icon;
-  final String text;
-  const _InfoPill({required this.icon, required this.text});
+class _PromoCard extends StatelessWidget {
+  final _PromoModel promo;
+  const _PromoCard({required this.promo});
+
+  Future<void> _toggleActive(BuildContext context) async {
+    try {
+      await FirebaseFirestore.instance
+          .collection('promotions')
+          .doc(promo.id)
+          .update({'isActive': !promo.isActive});
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('មានបញ្ហា: $e'), backgroundColor: _kAccentRed));
+      }
+    }
+  }
+
+  Future<void> _delete(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: _kSurface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: _kAccentRed, size: 24),
+            SizedBox(width: 10),
+            Text('លុបការផ្សព្វផ្សាយ?',
+              style: TextStyle(color: _kTextPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
+          ],
+        ),
+        content: const Text('ការផ្សព្វផ្សាយនេះនឹងត្រូវបានលុបចេញពីរបស់កសិករទាំងអស់។',
+          style: TextStyle(color: _kTextSecondary, fontSize: 13)),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('បោះបង់', style: TextStyle(color: _kTextSecondary)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: _kAccentRed,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('លុប', style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await FirebaseFirestore.instance
+            .collection('promotions')
+            .doc(promo.id)
+            .delete();
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('បានលុបការផ្សព្វផ្សាយ ✓'),
+              backgroundColor: _kAccentGreen));
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('មានបញ្ហា: $e'), backgroundColor: _kAccentRed));
+        }
+      }
+    }
+  }
 
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(icon, size: 12, color: _kTextMuted),
-      const SizedBox(width: 4),
-      Text(text, style: const TextStyle(fontSize: 11, color: _kTextSecondary)),
-    ],
-  );
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: _kSurface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: promo.isActive
+              ? _kAccentAmber.withOpacity(0.35)
+              : _kBorder),
+      ),
+      child: Column(
+        children: [
+          // Mini preview
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(15)),
+            child: Container(
+              padding: const EdgeInsets.all(14),
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+                  begin: Alignment.topLeft, end: Alignment.bottomRight)),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: promo.accentColor,
+                            borderRadius: BorderRadius.circular(5)),
+                          child: Text(promo.tag,
+                            style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.w700)),
+                        ),
+                        const SizedBox(height: 6),
+                        Text(promo.title,
+                          maxLines: 2,
+                          style: const TextStyle(color: Colors.white, fontSize: 12,
+                            fontWeight: FontWeight.w700, height: 1.3)),
+                        const SizedBox(height: 4),
+                        Text(promo.subtitle,
+                          style: const TextStyle(color: Colors.white60, fontSize: 10)),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Container(
+                    width: 44, height: 44,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(12)),
+                    child: Icon(_iconFromName(promo.iconName), color: Colors.white70, size: 24),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
+          // Action row
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            child: Row(
+              children: [
+                // Status badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: promo.isActive
+                        ? _kAccentGreen.withOpacity(0.15)
+                        : _kTextMuted.withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                      color: promo.isActive
+                          ? _kAccentGreen.withOpacity(0.4)
+                          : _kTextMuted.withOpacity(0.4)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Container(
+                        width: 6, height: 6,
+                        decoration: BoxDecoration(
+                          color: promo.isActive ? _kAccentGreen : _kTextMuted,
+                          shape: BoxShape.circle),
+                      ),
+                      const SizedBox(width: 5),
+                      Text(
+                        promo.isActive ? 'សកម្ម' : 'អសកម្ម',
+                        style: TextStyle(
+                          fontSize: 10, fontWeight: FontWeight.w700,
+                          color: promo.isActive ? _kAccentGreen : _kTextMuted)),
+                    ],
+                  ),
+                ),
+                const Spacer(),
+                // Toggle
+                GestureDetector(
+                  onTap: () => _toggleActive(context),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: _kNavyMid,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _kBorder)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          promo.isActive ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                          color: _kTextSecondary, size: 16),
+                        const SizedBox(width: 4),
+                        Text(promo.isActive ? 'ផ្អាក' : 'បើក',
+                          style: const TextStyle(fontSize: 11, color: _kTextSecondary, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                // Delete
+                GestureDetector(
+                  onTap: () => _delete(context),
+                  child: Container(
+                    width: 34, height: 34,
+                    decoration: BoxDecoration(
+                      color: _kAccentRed.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: _kAccentRed.withOpacity(0.3))),
+                    child: const Icon(Icons.delete_outline_rounded,
+                      color: _kAccentRed, size: 18),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TAB 2 — USERS (wraps existing UserListScreen with dark theming override)
+// TAB 2 — USERS
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _UsersTab extends StatelessWidget {
@@ -1350,7 +1554,7 @@ class _UsersTab extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
-// TAB 3 — CHAT (wraps existing AdminChatListScreen)
+// TAB 3 — CHAT
 // ═══════════════════════════════════════════════════════════════════════════════
 
 class _ChatTab extends StatelessWidget {
@@ -1422,7 +1626,7 @@ class _SettingsTab extends StatelessWidget {
                         color: _kTextPrimary)),
                     const SizedBox(height: 2),
                     Text(user?.roleDisplayName ?? 'Administrator',
-                      style: TextStyle(fontSize: 12, color: _kAccentBlue)),
+                      style: const TextStyle(fontSize: 12, color: _kAccentBlue)),
                     Text(user?.email ?? '',
                       style: const TextStyle(
                         fontSize: 11, color: _kTextSecondary)),
@@ -1468,48 +1672,30 @@ class _SettingsTab extends StatelessWidget {
                   label: 'ការជូនដំណឹង',
                   subtitle: 'គ្រប់គ្រងការជូនដំណឹង',
                   color: _kAccentAmber,
-                  onTap: () => _showInfoDialog(
-                    context,
-                    icon: Icons.notifications_rounded,
-                    color: _kAccentAmber,
+                  onTap: () => _showInfoDialog(context,
+                    icon: Icons.notifications_rounded, color: _kAccentAmber,
                     title: 'ការជូនដំណឹង',
-                    message: 'ការជូនដំណឹងសម្រាប់ការស្នើសុំថ្មី និងសារសន្ទនា '
-                        'ត្រូវបានបើកជានិច្ច។ លេខបន្ទះក្រហមនៅលើផ្ទាំង '
-                        '"ការសន្ទនា" និង "ការស្នើសុំ" បង្ហាញចំនួនថ្មីៗ '
-                        'ដោយស្វ័យប្រវត្តិ។',
-                  ),
+                    message: 'ការជូនដំណឹងសម្រាប់ការស្នើសុំថ្មី និងសារសន្ទនា ត្រូវបានបើកជានិច្ច។'),
                 ),
                 _SettingsTile(
                   icon: Icons.language_outlined,
                   label: 'ភាសា',
                   subtitle: 'ភាសាខ្មែរ',
                   color: _kAccentCyan,
-                  onTap: () => _showInfoDialog(
-                    context,
-                    icon: Icons.language_rounded,
-                    color: _kAccentCyan,
+                  onTap: () => _showInfoDialog(context,
+                    icon: Icons.language_rounded, color: _kAccentCyan,
                     title: 'ភាសា',
-                    message: 'កម្មវិធីនេះប្រើភាសាខ្មែរទាំងស្រុងបច្ចុប្បន្ន។ '
-                        'ការគាំទ្រភាសាបន្ថែមអាចមកដល់ក្នុងកំណែបន្ទាប់។',
-                  ),
+                    message: 'កម្មវិធីនេះប្រើភាសាខ្មែរទាំងស្រុងបច្ចុប្បន្ន។'),
                 ),
                 _SettingsTile(
                   icon: Icons.security_outlined,
                   label: 'ការសន្តិសុខ',
                   subtitle: 'Firestore rules · Access control',
                   color: _kAccentGreen,
-                  onTap: () => _showInfoDialog(
-                    context,
-                    icon: Icons.security_rounded,
-                    color: _kAccentGreen,
+                  onTap: () => _showInfoDialog(context,
+                    icon: Icons.security_rounded, color: _kAccentGreen,
                     title: 'ការសន្តិសុខ',
-                    message: 'គណនីអ្នកគ្រប់គ្រងត្រូវបានកំណត់ដោយប្រព័ន្ធ៖ '
-                        'មិនមានអ្នកប្រើប្រាស់ណាម្នាក់អាចចុះឈ្មោះខ្លួនជា '
-                        'អ្នកគ្រប់គ្រងបានទេ លុះត្រាតែប្រើគណនីគ្រប់គ្រងដែល '
-                        'បានកំណត់ជាមុនប៉ុណ្ណោះ។ ច្បាប់ Firestore ការពារ '
-                        'ទិន្នន័យអ្នកប្រើប្រាស់ឲ្យតែម្ចាស់ និងអ្នកគ្រប់គ្រង '
-                        'ប៉ុណ្ណោះអាចកែប្រែ ឬលុបបាន។',
-                  ),
+                    message: 'គណនីអ្នកគ្រប់គ្រងត្រូវបានកំណត់ដោយប្រព័ន្ធ។ ច្បាប់ Firestore ការពារទិន្នន័យ។'),
                 ),
               ]),
 
@@ -1517,40 +1703,19 @@ class _SettingsTab extends StatelessWidget {
 
               _SettingsSection(title: 'ផ្សេងៗ', items: [
                 _SettingsTile(
-                  icon: Icons.help_outline_rounded,
-                  label: 'ជំនួយ',
-                  subtitle: 'FAQ · Support',
-                  color: _kTextSecondary,
-                  onTap: () => _showInfoDialog(
-                    context,
-                    icon: Icons.help_rounded,
-                    color: _kTextSecondary,
-                    title: 'ជំនួយ',
-                    message: 'ប្រសិនបើអ្នកមានសំណួរ ឬត្រូវការជំនួយក្នុងការ '
-                        'គ្រប់គ្រងប្រព័ន្ធ សូមទាក់ទងក្រុមអភិវឌ្ឍន៍ '
-                        'តាមរយៈអ៊ីមែលដែលបានចុះឈ្មោះ។',
-                  ),
-                ),
-                _SettingsTile(
                   icon: Icons.info_outline_rounded,
                   label: 'អំពីកម្មវិធី',
                   subtitle: 'Dorne v1.0.0 · Built with Flutter',
                   color: _kTextSecondary,
-                  onTap: () => _showInfoDialog(
-                    context,
-                    icon: Icons.info_rounded,
-                    color: _kTextSecondary,
+                  onTap: () => _showInfoDialog(context,
+                    icon: Icons.info_rounded, color: _kTextSecondary,
                     title: 'អំពីកម្មវិធី',
-                    message: 'តោះជួល (Dorne) — ប្រព័ន្ធភ្ជាប់កសិករ និង '
-                        'អ្នកផ្តល់សេវាកសិកម្ម។\n\nកំណែ៖ 1.0.0\n'
-                        'បង្កើតឡើងជាមួយ Flutter & Firebase.',
-                  ),
+                    message: 'តោះជួល (Dorne) — ប្រព័ន្ធភ្ជាប់កសិករ និងអ្នកផ្តល់សេវាកសិកម្ម។\n\nកំណែ៖ 1.0.0\nបង្កើតឡើងជាមួយ Flutter & Firebase.'),
                 ),
               ]),
 
               const SizedBox(height: 24),
 
-              // Logout
               GestureDetector(
                 onTap: () async {
                   HapticFeedback.lightImpact();
@@ -1589,36 +1754,25 @@ class _SettingsTab extends StatelessWidget {
     );
   }
 
-  // ── Generic informational dialog (replaces the old dead onTap: () {}) ────
-  void _showInfoDialog(
-    BuildContext context, {
-    required IconData icon,
-    required Color color,
-    required String title,
-    required String message,
-  }) {
+  void _showInfoDialog(BuildContext context, {required IconData icon, required Color color,
+      required String title, required String message}) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: _kSurface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
-        title: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(10)),
-              child: Icon(icon, color: color, size: 20),
-            ),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Text(title,
-                style: const TextStyle(
-                  color: _kTextPrimary, fontSize: 16, fontWeight: FontWeight.w700)),
-            ),
-          ],
-        ),
+        title: Row(children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.15),
+              borderRadius: BorderRadius.circular(10)),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 10),
+          Expanded(child: Text(title,
+            style: const TextStyle(color: _kTextPrimary, fontSize: 16, fontWeight: FontWeight.w700))),
+        ]),
         content: Text(message,
           style: const TextStyle(color: _kTextSecondary, fontSize: 13, height: 1.5)),
         actions: [
@@ -1631,7 +1785,6 @@ class _SettingsTab extends StatelessWidget {
     );
   }
 
-  // ── Real change-password flow via Firebase Auth ──────────────────────────
   void _showChangePasswordSheet(BuildContext context, String email) {
     final newPassCtrl = TextEditingController();
     final confirmCtrl = TextEditingController();
@@ -1667,10 +1820,8 @@ class _SettingsTab extends StatelessWidget {
                   decoration: InputDecoration(
                     hintText: 'ពាក្យសម្ងាត់ថ្មី (យ៉ាងហោចណាស់ ៦ តួ)',
                     hintStyle: const TextStyle(color: _kTextMuted, fontSize: 13),
-                    filled: true,
-                    fillColor: _kNavyMid,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    filled: true, fillColor: _kNavyMid,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: _kBorder)),
                     suffixIcon: IconButton(
                       icon: Icon(obscure1 ? Icons.visibility_off_outlined : Icons.visibility_outlined,
@@ -1687,10 +1838,8 @@ class _SettingsTab extends StatelessWidget {
                   decoration: InputDecoration(
                     hintText: 'បញ្ជាក់ពាក្យសម្ងាត់ថ្មី',
                     hintStyle: const TextStyle(color: _kTextMuted, fontSize: 13),
-                    filled: true,
-                    fillColor: _kNavyMid,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
+                    filled: true, fillColor: _kNavyMid,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: _kBorder)),
                     suffixIcon: IconButton(
                       icon: Icon(obscure2 ? Icons.visibility_off_outlined : Icons.visibility_outlined,
@@ -1705,47 +1854,31 @@ class _SettingsTab extends StatelessWidget {
                 ],
                 const SizedBox(height: 18),
                 SizedBox(
-                  width: double.infinity,
-                  height: 48,
+                  width: double.infinity, height: 48,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: _kAccentBlue,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                    ),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                     onPressed: submitting ? null : () async {
                       final p1 = newPassCtrl.text;
                       final p2 = confirmCtrl.text;
-                      if (p1.length < 6) {
-                        setSheetState(() => errorText = 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងហោចណាស់ ៦ តួ');
-                        return;
-                      }
-                      if (p1 != p2) {
-                        setSheetState(() => errorText = 'ពាក្យសម្ងាត់មិនដូចគ្នា');
-                        return;
-                      }
+                      if (p1.length < 6) { setSheetState(() => errorText = 'ពាក្យសម្ងាត់ត្រូវមានយ៉ាងហោចណាស់ ៦ តួ'); return; }
+                      if (p1 != p2) { setSheetState(() => errorText = 'ពាក្យសម្ងាត់មិនដូចគ្នា'); return; }
                       setSheetState(() { submitting = true; errorText = null; });
                       try {
                         await FirebaseAuth.instance.currentUser?.updatePassword(p1);
                         if (ctx.mounted) {
                           Navigator.pop(ctx);
                           ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('ផ្លាស់ប្ដូរពាក្យសម្ងាត់ដោយជោគជ័យ ✓'),
-                              backgroundColor: _kAccentGreen,
-                            ),
-                          );
+                            const SnackBar(content: Text('ផ្លាស់ប្ដូរពាក្យសម្ងាត់ដោយជោគជ័យ ✓'),
+                              backgroundColor: _kAccentGreen));
                         }
                       } on FirebaseAuthException catch (e) {
                         String msg;
                         switch (e.code) {
-                          case 'requires-recent-login':
-                            msg = 'សូមចេញ ហើយចូលគណនីម្ដងទៀត មុននឹងផ្លាស់ប្ដូរពាក្យសម្ងាត់';
-                            break;
-                          case 'weak-password':
-                            msg = 'ពាក្យសម្ងាត់ខ្សោយពេក';
-                            break;
-                          default:
-                            msg = 'មានបញ្ហា (${e.code})';
+                          case 'requires-recent-login': msg = 'សូមចេញ ហើយចូលគណនីម្ដងទៀត'; break;
+                          case 'weak-password': msg = 'ពាក្យសម្ងាត់ខ្សោយពេក'; break;
+                          default: msg = 'មានបញ្ហា (${e.code})';
                         }
                         setSheetState(() { submitting = false; errorText = msg; });
                       } catch (e) {
@@ -1793,8 +1926,7 @@ class _SettingsSection extends StatelessWidget {
             return Column(
               children: [
                 e.value,
-                if (!isLast)
-                  const Divider(height: 1, color: _kBorder, indent: 54),
+                if (!isLast) const Divider(height: 1, color: _kBorder, indent: 54),
               ],
             );
           }).toList(),
@@ -1835,11 +1967,9 @@ class _SettingsTile extends StatelessWidget {
               children: [
                 Text(label,
                   style: const TextStyle(
-                    fontSize: 13, fontWeight: FontWeight.w600,
-                    color: _kTextPrimary)),
+                    fontSize: 13, fontWeight: FontWeight.w600, color: _kTextPrimary)),
                 Text(subtitle,
-                  style: const TextStyle(
-                    fontSize: 11, color: _kTextSecondary)),
+                  style: const TextStyle(fontSize: 11, color: _kTextSecondary)),
               ],
             ),
           ),

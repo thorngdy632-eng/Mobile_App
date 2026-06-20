@@ -465,17 +465,23 @@ class _RequestSheetState extends State<_RequestSheet> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(r.farmerName,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w800)),
               ),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
-                decoration: BoxDecoration(
-                  color: r.statusColor,
-                  borderRadius: BorderRadius.circular(8),
+              const SizedBox(width: 8),
+              Flexible(
+                fit: FlexFit.loose,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: r.statusColor,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(r.statusLabel,
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
                 ),
-                child: Text(r.statusLabel,
-                    style: const TextStyle(
-                        color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
               ),
             ],
           ),
@@ -580,9 +586,14 @@ class _RequestSheetState extends State<_RequestSheet> {
         children: [
           Icon(icon, size: 16, color: AppColors.textMuted),
           const SizedBox(width: 8),
-          Text('$label: ', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+          Flexible(
+            fit: FlexFit.loose,
+            child: Text('$label: ', maxLines: 1, overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+          ),
           Expanded(
-              child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+              child: Text(value, maxLines: 2, overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
         ],
       ),
     );

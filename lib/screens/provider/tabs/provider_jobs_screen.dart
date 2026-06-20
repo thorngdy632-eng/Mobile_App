@@ -192,17 +192,23 @@ class _JobCard extends StatelessWidget {
               Text(info['label'] as String,
                   style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF2D3142))),
               Text('👤 ${request.farmerName}',
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
                   style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
             ])),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: request.statusColor.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: request.statusColor.withOpacity(0.3)),
+            const SizedBox(width: 8),
+            Flexible(
+              fit: FlexFit.loose,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                decoration: BoxDecoration(
+                  color: request.statusColor.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: request.statusColor.withOpacity(0.3)),
+                ),
+                child: Text(request.statusLabel,
+                    maxLines: 1, overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: request.statusColor)),
               ),
-              child: Text(request.statusLabel,
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: request.statusColor)),
             ),
           ]),
 
@@ -224,12 +230,12 @@ class _JobCard extends StatelessWidget {
           const SizedBox(height: 12),
           // Price footer
           Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${request.offerPrice.toStringAsFixed(0)} ៛',
                   style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32))),
               Text('≈ \$${(request.offerPrice / 4100).toStringAsFixed(2)}',
                   style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
-            ]),
+            ])),
             Icon(Icons.arrow_forward_ios_rounded, size: 14, color: Colors.grey.shade400),
           ]),
         ]),

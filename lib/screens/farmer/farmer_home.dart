@@ -17,24 +17,47 @@ import 'my_service_requests_screen.dart';
 import 'service_request_map_screen.dart';
 import '../auth/auth_wrapper.dart';
 
-// ─── Static data ─────────────────────────────────────────────────────────────
+// ─── Dynamic promo model ──────────────────────────────────────────────────────
+class _DynPromoItem {
+  final String id;
+  final String tag;
+  final String title;
+  final String subtitle;
+  final Color accentColor;
+  final String iconName;
 
-const List<_PromoItem> _promos = [
-  _PromoItem(
-    tag: 'ចំណេញ ១០០%',
-    title: 'សហគមន៍ភូមិកំពង់ចំបក់\nតាមរយៈ Escrow',
-    subtitle: 'ធ្វើការ · ABA · KHQR',
-    accentColor: Color(0xFFFF7043),
-    icon: Icons.verified_outlined,
-  ),
-  _PromoItem(
-    tag: 'ថ្មី',
-    title: 'ជួលត្រាក់ទ័រ Kubota\nតម្លៃពិសេសសម្រាប់ម្ចាស់ដំណាំ',
-    subtitle: 'តុក្កតា · ABA',
-    accentColor: Color(0xFF66BB6A),
-    icon: Icons.agriculture_outlined,
-  ),
-];
+  const _DynPromoItem({
+    required this.id,
+    required this.tag,
+    required this.title,
+    required this.subtitle,
+    required this.accentColor,
+    required this.iconName,
+  });
+
+  factory _DynPromoItem.fromDoc(DocumentSnapshot doc) {
+    final d = doc.data() as Map<String, dynamic>;
+    return _DynPromoItem(
+      id: doc.id,
+      tag: d['tag'] ?? '',
+      title: d['title'] ?? '',
+      subtitle: d['subtitle'] ?? '',
+      accentColor: Color(d['accentColor'] ?? 0xFFFF7043),
+      iconName: d['iconName'] ?? 'verified',
+    );
+  }
+}
+
+IconData _promoIconFromName(String name) {
+  switch (name) {
+    case 'agriculture': return Icons.agriculture_outlined;
+    case 'campaign':    return Icons.campaign_outlined;
+    case 'star':        return Icons.star_outline;
+    case 'discount':    return Icons.discount_outlined;
+    case 'bolt':        return Icons.bolt_outlined;
+    default:            return Icons.verified_outlined;
+  }
+}
 
 const Map<String, _ImgCfg> _serviceImgCfgs = {
   'plowing':     _ImgCfg('assets/images/1.png', Color(0xFFFFF3E0), Color(0xFFFF9800)),
@@ -555,9 +578,6 @@ class _HomeTab extends StatelessWidget {
           ),
         ),
 
-        // ── Search bar ──
-        SliverToBoxAdapter(child: _SearchBar()),
-
         // ── Quick service tiles ──
         SliverToBoxAdapter(
           child: _SectionHeader(
@@ -577,7 +597,7 @@ class _HomeTab extends StatelessWidget {
           ),
         ),
         SliverToBoxAdapter(
-          child: _PromoBanner(
+          child: _DynamicPromoBanner(
             ctrl: promoCtrl,
             page: promoPage,
             onPage: onPromoPage,
@@ -1133,59 +1153,115 @@ class _ServiceTile extends StatelessWidget {
   }
 }
 
-// ─── Promo banner ─────────────────────────────────────────────────────────────
+// ─── Dynamic promo banner (reads from Firestore) ───────────────────────────────
 
-class _PromoBanner extends StatelessWidget {
+class _DynamicPromoBanner extends StatefulWidget {
   final PageController ctrl;
   final int page;
   final void Function(int) onPage;
 
-  const _PromoBanner(
+  const _DynamicPromoBanner(
       {required this.ctrl, required this.page, required this.onPage});
 
   @override
+  State<_DynamicPromoBanner> createState() => _DynamicPromoBannerState();
+}
+
+class _DynamicPromoBannerState extends State<_DynamicPromoBanner> {
+  @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        SizedBox(
-          height: 120,
-          child: PageView.builder(
-            controller: ctrl,
-            itemCount: _promos.length,
-            onPageChanged: onPage,
-            itemBuilder: (_, i) => Padding(
-              padding: EdgeInsets.only(
-                  left: 16,
-                  right: i == _promos.length - 1 ? 16 : 8),
-              child: _PromoBannerCard(item: _promos[i]),
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('promotions')
+          .where('isActive', isEqualTo: true)
+          .snapshots(),
+      builder: (context, snap) {
+        if (snap.hasError) {
+          debugPrint('Promo stream error: ${snap.error}');
+        }
+        final docs = snap.data?.docs ?? [];
+
+        // Empty state
+        if (docs.isEmpty) {
+          return Container(
+            margin: const EdgeInsets.symmetric(horizontal: 16),
+            height: 110,
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF1B5E20), Color(0xFF2E7D32)],
+                begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.circular(18),
             ),
-          ),
-        ),
-        const SizedBox(height: 10),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: List.generate(
-            _promos.length,
-            (i) => AnimatedContainer(
-              duration: const Duration(milliseconds: 220),
-              margin: const EdgeInsets.symmetric(horizontal: 3),
-              width: i == page ? 20 : 7,
-              height: 7,
-              decoration: BoxDecoration(
-                color: i == page ? _kGreen : const Color(0xFFBDBDBD),
-                borderRadius: BorderRadius.circular(4),
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.campaign_outlined, color: Colors.white54, size: 32),
+                  SizedBox(height: 8),
+                  Text('មិនទាន់មានការផ្សព្វផ្សាយ',
+                    style: TextStyle(color: Colors.white54, fontSize: 12)),
+                ],
               ),
             ),
-          ),
-        ),
-      ],
+          );
+        }
+
+        // Client-side sort by createdAt descending (no composite index needed)
+        docs.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>?;
+          final bData = b.data() as Map<String, dynamic>?;
+          final aTime = (aData?['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
+          final bTime = (bData?['createdAt'] as Timestamp?)?.toDate() ?? DateTime(2000);
+          return bTime.compareTo(aTime);
+        });
+        final sortedPromos = docs.map((d) => _DynPromoItem.fromDoc(d)).toList();
+        final count  = sortedPromos.length;
+
+        return Column(
+          children: [
+            SizedBox(
+              height: 120,
+              child: PageView.builder(
+                controller: widget.ctrl,
+                itemCount: count,
+                onPageChanged: widget.onPage,
+                itemBuilder: (_, i) => Padding(
+                  padding: EdgeInsets.only(
+                    left: 16,
+                    right: i == count - 1 ? 16 : 8),
+                  child: _DynPromoBannerCard(item: sortedPromos[i]),
+                ),
+              ),
+            ),
+            if (count > 1) ...[
+              const SizedBox(height: 10),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  count,
+                  (i) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 220),
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    width: i == widget.page ? 20 : 7,
+                    height: 7,
+                    decoration: BoxDecoration(
+                      color: i == widget.page ? _kGreen : const Color(0xFFBDBDBD),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 }
 
-class _PromoBannerCard extends StatelessWidget {
-  final _PromoItem item;
-  const _PromoBannerCard({required this.item});
+class _DynPromoBannerCard extends StatelessWidget {
+  final _DynPromoItem item;
+  const _DynPromoBannerCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
@@ -1193,15 +1269,10 @@ class _PromoBannerCard extends StatelessWidget {
       decoration: BoxDecoration(
         gradient: const LinearGradient(
           colors: [_kGreenDark, Color(0xFF2E7D32)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
+          begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(18),
         boxShadow: const [
-          BoxShadow(
-              color: Color(0x30000000),
-              blurRadius: 12,
-              offset: Offset(0, 4))
+          BoxShadow(color: Color(0x30000000), blurRadius: 12, offset: Offset(0, 4))
         ],
       ),
       padding: const EdgeInsets.all(16),
@@ -1213,42 +1284,33 @@ class _PromoBannerCard extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
                     color: item.accentColor,
-                    borderRadius: BorderRadius.circular(6),
-                  ),
+                    borderRadius: BorderRadius.circular(6)),
                   child: Text(item.tag,
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 10,
-                          fontWeight: FontWeight.w700)),
+                    style: const TextStyle(
+                      color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700)),
                 ),
                 const SizedBox(height: 7),
                 Text(item.title,
-                    maxLines: 2,
-                    style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w700,
-                        height: 1.35)),
+                  maxLines: 2,
+                  style: const TextStyle(
+                    color: Colors.white, fontSize: 13,
+                    fontWeight: FontWeight.w700, height: 1.35)),
                 const SizedBox(height: 5),
                 Text(item.subtitle,
-                    style: const TextStyle(
-                        color: Colors.white60, fontSize: 11)),
+                  style: const TextStyle(color: Colors.white60, fontSize: 11)),
               ],
             ),
           ),
           const SizedBox(width: 10),
           Container(
-            width: 52,
-            height: 52,
+            width: 52, height: 52,
             decoration: BoxDecoration(
               color: Colors.white.withOpacity(0.12),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(item.icon, color: Colors.white70, size: 28),
+              borderRadius: BorderRadius.circular(14)),
+            child: Icon(_promoIconFromName(item.iconName), color: Colors.white70, size: 28),
           ),
         ],
       ),
@@ -2051,22 +2113,6 @@ class _ProfileActionTile extends StatelessWidget {
 }
 
 // ─── Helper classes ───────────────────────────────────────────────────────────
-
-class _PromoItem {
-  final String tag;
-  final String title;
-  final String subtitle;
-  final Color accentColor;
-  final IconData icon;
-
-  const _PromoItem({
-    required this.tag,
-    required this.title,
-    required this.subtitle,
-    required this.accentColor,
-    required this.icon,
-  });
-}
 
 class _ImgCfg {
   final String imagePath;
