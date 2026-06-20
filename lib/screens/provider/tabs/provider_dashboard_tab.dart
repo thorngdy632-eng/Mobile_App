@@ -1,14 +1,16 @@
-// lib/screens/provider/provider_dashboard.dart
+// lib/screens/provider/tabs/provider_dashboard_tab.dart
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/app_provider.dart';
+import '../../../models/service_request.dart';
 import '../../../theme/app_theme.dart';
 import '../../../theme/app_colors.dart';
 import '../../profile/edit_profile_screen.dart';
 import '../notifications/notifications_screen.dart';
-import 'provider_job_detail_screen.dart';
+import '../provider_map_screen.dart';
 
 /// The main dashboard tab for Service Providers.
 /// Shows:
@@ -26,6 +28,7 @@ class ProviderDashboard extends StatefulWidget {
 class _ProviderDashboardState extends State<ProviderDashboard> {
   final ScrollController _scroll = ScrollController();
   bool _headerCollapsed = false;
+  Position? _myPosition;
 
   @override
   void initState() {
@@ -34,6 +37,26 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
       final c = _scroll.offset > 60;
       if (c != _headerCollapsed) setState(() => _headerCollapsed = c);
     });
+    _detectLocation();
+  }
+
+  Future<void> _detectLocation() async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) {
+        return;
+      }
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+      );
+      if (mounted) setState(() => _myPosition = pos);
+    } catch (_) {
+      // Silently ignore — distance simply won't be shown.
+    }
   }
 
   @override
@@ -66,11 +89,16 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
 
   // ── Quick Stats ─────────────────────────────────────────────────────────────
   Widget _buildQuickStats() {
-    return Consumer<AppProvider>(builder: (_, app, __) {
-      final pending = app.pendingTractorJobs.length + app.pendingDroneJobs.length;
-      final total = app.tractorJobs.length + app.droneJobs.length;
-      final done = app.tractorJobs.where((j) => j.status == 'completed').length +
-          app.droneJobs.where((j) => j.status == 'completed').length;
+    return Consumer2<AppProvider, AuthProvider>(builder: (_, app, auth, __) {
+      final myUid = auth.currentUser?.uid ?? '';
+      final myServiceType = auth.currentUser?.serviceType ?? ServiceTypes.plowing;
+
+      final pending = app
+          .pendingServiceRequestsForProvider(myServiceType, excludeDeclinedBy: myUid)
+          .length;
+      final mine = app.serviceRequests.where((r) => r.providerUid == myUid).toList();
+      final total = mine.length;
+      final done = mine.where((r) => r.status == 'completed').length;
 
       return Container(
         margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
@@ -87,42 +115,16 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
 
   // ── New Job Alerts ──────────────────────────────────────────────────────────
   Widget _buildNewJobAlerts() {
-    return Consumer<AppProvider>(builder: (_, app, __) {
-      final newJobs = <_IncomingJob>[];
-      for (final j in app.pendingTractorJobs.take(5)) {
-        newJobs.add(_IncomingJob(
-          id: j.id,
-          farmerName: j.farmerName,
-          serviceType: j.serviceType,
-          location: j.location,
-          areaHa: j.areaHectares,
-          date: j.scheduledDate,
-          time: j.scheduledTime,
-          priceSuggest: (j.areaHectares * 45).toStringAsFixed(0),
-          priceSuggestKhr: (j.areaHectares * 45 * 4100).toStringAsFixed(0),
-          icon: '🚜',
-          color: const Color(0xFF1565C0),
-          isTractor: true,
-        ));
-      }
-      for (final j in app.pendingDroneJobs.take(5)) {
-        newJobs.add(_IncomingJob(
-          id: j.id,
-          farmerName: j.farmerName,
-          serviceType: 'ដ្រូនបាញ់ ${j.cropType}',
-          location: j.location,
-          areaHa: j.areaHectares,
-          date: j.scheduledDate,
-          time: j.scheduledTime,
-          priceSuggest: (j.areaHectares * 30).toStringAsFixed(0),
-          priceSuggestKhr: (j.areaHectares * 30 * 4100).toStringAsFixed(0),
-          icon: '🛸',
-          color: const Color(0xFF00838F),
-          isTractor: false,
-        ));
-      }
+    return Consumer2<AppProvider, AuthProvider>(builder: (_, app, auth, __) {
+      final myUid = auth.currentUser?.uid ?? '';
+      final myServiceType = auth.currentUser?.serviceType ?? ServiceTypes.plowing;
 
-      if (newJobs.isEmpty) {
+      final pending = app.pendingServiceRequestsForProvider(
+        myServiceType,
+        excludeDeclinedBy: myUid,
+      );
+
+      if (pending.isEmpty) {
         return Padding(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
           child: _SectionHeader(title: 'ការជូនដំណឹងថ្មី', sub: 'គ្មានការងារថ្មី'),
@@ -132,11 +134,15 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-          child: _SectionHeader(title: 'ការជូនដំណឹងថ្មី 🔔', sub: '${newJobs.length} ការងាររង់ចាំ'),
+          child: _SectionHeader(title: 'ការជូនដំណឹងថ្មី 🔔', sub: '${pending.length} ការងាររង់ចាំ'),
         ),
-        ...newJobs.map((job) => Padding(
+        ...pending.take(5).map((r) => Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
-          child: _JobAlertCard(job: job),
+          child: _JobAlertCard(
+            request: r,
+            myUid: myUid,
+            myPosition: _myPosition,
+          ),
         )),
       ]);
     });
@@ -144,16 +150,16 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
 
   // ── Today Schedule ──────────────────────────────────────────────────────────
   Widget _buildTodaySchedule() {
-    return Consumer<AppProvider>(builder: (_, app, __) {
-      final confirmed = [
-        ...app.tractorJobs.where((j) => j.status == 'confirmed').take(3),
-      ];
+    return Consumer2<AppProvider, AuthProvider>(builder: (_, app, auth, __) {
+      final myUid = auth.currentUser?.uid ?? '';
+      final accepted = app.acceptedServiceRequestsForProvider(myUid).take(3).toList();
+
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-          child: _SectionHeader(title: 'កាលវិភាគថ្ងៃនេះ', sub: '${confirmed.length} ការងារ'),
+          child: _SectionHeader(title: 'ការងារដែលបានទទួល', sub: '${accepted.length} ការងារ'),
         ),
-        if (confirmed.isEmpty)
+        if (accepted.isEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
             child: Container(
@@ -166,19 +172,27 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
               child: const Row(children: [
                 Icon(Icons.event_available_rounded, color: Color(0xFF9E9E9E)),
                 SizedBox(width: 12),
-                Text('គ្មានការងារបញ្ជាក់ថ្ងៃនេះ', style: TextStyle(color: AppColors.textMuted)),
+                Text('គ្មានការងារដែលបានទទួលនៅឡើយ', style: TextStyle(color: AppColors.textMuted)),
               ]),
             ),
           )
         else
-          ...confirmed.map((j) => Padding(
+          ...accepted.map((r) => Padding(
             padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
-            child: _ScheduleCard(
-              service: j.serviceType,
-              location: j.location,
-              date: j.scheduledDate,
-              time: j.scheduledTime,
-              areaHa: j.areaHectares,
+            child: GestureDetector(
+              onTap: () => showRequestDetailSheet(
+                context: context,
+                request: r,
+                myUid: myUid,
+                myPosition: _myPosition,
+              ),
+              child: _ScheduleCard(
+                service: ServiceTypes.labelOf(r.serviceType),
+                farmerName: r.farmerName,
+                location: r.currentAddress,
+                landLabel: r.landLabel,
+                offerPrice: r.offerPrice,
+              ),
             ),
           )),
       ]);
@@ -187,10 +201,23 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
 
   // ── Earnings Card ───────────────────────────────────────────────────────────
   Widget _buildEarningsCard() {
-    return Consumer<AppProvider>(builder: (_, app, __) {
-      final completed = app.tractorJobs.where((j) => j.status == 'completed').toList();
-      final totalUsd = completed.fold(0.0, (sum, j) => sum + (j.areaHectares * 45));
-      final totalKhr = (totalUsd * 4100).toInt();
+    return Consumer2<AppProvider, AuthProvider>(builder: (_, app, auth, __) {
+      final myUid = auth.currentUser?.uid ?? '';
+      final completed = app.serviceRequests
+          .where((r) => r.providerUid == myUid && r.status == 'completed')
+          .toList();
+
+      // offerPrice is stored in Riel (KHR) — see _RequestFormSheet's default
+      // currency. ~4,100 KHR per USD is used app-wide as the display rate.
+      final totalKhr = completed.fold(0.0, (sum, r) => sum + r.offerPrice);
+      final totalUsd = totalKhr / 4100;
+      final totalHectares = completed.fold(0.0, (sum, r) {
+        final unit = LandUnitX.fromString(r.landUnit);
+        // Normalize rai → hectare for the summary (1 rai ≈ 0.16 ha) so the
+        // total is meaningful even when farmers mix units.
+        final ha = unit == LandUnit.rai ? r.landArea * 0.16 : r.landArea;
+        return sum + ha;
+      });
 
       return Container(
         margin: const EdgeInsets.fromLTRB(16, 20, 16, 0),
@@ -214,7 +241,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           Text('${totalKhr.toStringAsFixed(0)} ៛',
               style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.w900)),
           const SizedBox(height: 4),
-          Text('${_fmtKhr(totalKhr)} ៛',
+          Text('≈ \$${totalUsd.toStringAsFixed(2)}',
               style: const TextStyle(color: Color(0xFFA5D6A7), fontSize: 14, fontWeight: FontWeight.w600)),
           const SizedBox(height: 16),
           Container(height: 1, color: Colors.white24),
@@ -222,18 +249,11 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
           Row(children: [
             Expanded(child: _EarningsSub(label: 'ការងារបញ្ចប់', value: '${completed.length} ការងារ')),
             const SizedBox(width: 16),
-            Expanded(child: _EarningsSub(label: 'ហិចតា​សរុប',
-                value: '${completed.fold(0.0, (s, j) => s + j.areaHectares).toStringAsFixed(1)} ha')),
+            Expanded(child: _EarningsSub(label: 'ផ្ទៃដីសរុប', value: '${totalHectares.toStringAsFixed(1)} ha')),
           ]),
         ]),
       );
     });
-  }
-
-  String _fmtKhr(int amount) {
-    if (amount >= 1000000) return '${(amount / 1000000).toStringAsFixed(1)}M';
-    if (amount >= 1000) return '${(amount / 1000).toStringAsFixed(0)}K';
-    return '$amount';
   }
 }
 
@@ -247,7 +267,11 @@ class _HeroHeader extends StatelessWidget {
     final user = context.watch<AuthProvider>().currentUser;
     final app = context.watch<AppProvider>();
     final topPad = MediaQuery.of(context).padding.top;
-    final pending = app.pendingTractorJobs.length + app.pendingDroneJobs.length;
+    final myUid = user?.uid ?? '';
+    final myServiceType = user?.serviceType ?? ServiceTypes.plowing;
+    final pending = app
+        .pendingServiceRequestsForProvider(myServiceType, excludeDeclinedBy: myUid)
+        .length;
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
@@ -323,9 +347,10 @@ class _HeroHeader extends StatelessWidget {
                 border: Border.all(color: Colors.white30),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Text('⚙️', style: TextStyle(fontSize: 14)),
+                Icon(ServiceTypes.infoOf(user!.serviceType!)['icon'] as IconData,
+                    size: 14, color: Colors.white),
                 const SizedBox(width: 6),
-                Text(user!.serviceType!,
+                Text(ServiceTypes.labelOf(user.serviceType!),
                     style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
               ]),
             ),
@@ -375,110 +400,123 @@ class _StatCard extends StatelessWidget {
 }
 
 // ── Incoming Job Alert Card ────────────────────────────────────────────────────
-class _IncomingJob {
-  final String id, farmerName, serviceType, location, date, time;
-  final double areaHa;
-  final String priceSuggest, priceSuggestKhr, icon;
-  final Color color;
-  final bool isTractor;
-  const _IncomingJob({required this.id, required this.farmerName, required this.serviceType,
-      required this.location, required this.areaHa, required this.date, required this.time,
-      required this.priceSuggest, required this.priceSuggestKhr, required this.icon,
-      required this.color, required this.isTractor});
-}
-
+//
+// Built directly off a live ServiceRequest (the same model the map screen
+// uses) so the farmer's name, location, land size, and offer price are
+// always the real data for *this* request — never placeholder/static values.
 class _JobAlertCard extends StatelessWidget {
-  final _IncomingJob job;
-  const _JobAlertCard({required this.job});
+  final ServiceRequest request;
+  final String myUid;
+  final Position? myPosition;
+  const _JobAlertCard({required this.request, required this.myUid, this.myPosition});
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
-    onTap: () => Navigator.push(context, MaterialPageRoute(
-        builder: (_) => ProviderJobDetailScreen(jobId: job.id, isTractor: job.isTractor))),
-    child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: job.color.withOpacity(0.2)),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 3))],
-      ),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        // Header row
-        Row(children: [
-          Container(
-            width: 44, height: 44,
-            decoration: BoxDecoration(color: job.color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-            child: Center(child: Text(job.icon, style: const TextStyle(fontSize: 22))),
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [
-              Expanded(child: Text(job.serviceType,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF2D3142)))),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: const Color(0xFFE53935).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                child: const Text('ថ្មី🔔', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFE53935))),
-              ),
-            ]),
-            const SizedBox(height: 3),
-            Text('👤 ${job.farmerName}', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
-          ])),
-        ]),
-        const SizedBox(height: 12),
-        Container(height: 1, color: const Color(0xFFF0F0F0)),
-        const SizedBox(height: 12),
+  Widget build(BuildContext context) {
+    final info = ServiceTypes.infoOf(request.serviceType);
+    final Color color = info['color'] as Color;
+    final IconData icon = info['icon'] as IconData;
+    final app = context.read<AppProvider>();
 
-        // Details grid
-        Row(children: [
-          Expanded(child: _InfoCell(icon: Icons.location_on_rounded, label: 'ទីតាំង', value: job.location, color: job.color)),
-          const SizedBox(width: 8),
-          Expanded(child: _InfoCell(icon: Icons.crop_square_rounded, label: 'ស្រែ (ហិចតា)', value: '${job.areaHa.toStringAsFixed(1)} ha', color: job.color)),
-        ]),
-        const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: _InfoCell(icon: Icons.calendar_today_rounded, label: 'កាលបរិច្ឆេទ', value: job.date, color: job.color)),
-          const SizedBox(width: 8),
-          Expanded(child: _InfoCell(icon: Icons.access_time_rounded, label: 'ម៉ោង', value: job.time, color: job.color)),
-        ]),
+    double? distanceKm;
+    if (myPosition != null) {
+      distanceKm = app.distanceToRequestKm(
+        providerLat: myPosition!.latitude,
+        providerLng: myPosition!.longitude,
+        request: request,
+      );
+    }
 
-        const SizedBox(height: 12),
-        // Price row
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF8FAF5),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: const Color(0xFFE8F5E9)),
-          ),
-          child: Row(children: [
-            const Icon(Icons.attach_money_rounded, color: Color(0xFF43A047), size: 20),
-            const SizedBox(width: 8),
-            Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('${job.priceSuggestKhr} ៛',
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32))),
-              Text('≈ ${job.priceSuggestKhr} ៛',
-                  style: const TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w500)),
-            ]),
-            const Spacer(),
-            ElevatedButton(
-              onPressed: () => Navigator.push(context, MaterialPageRoute(
-                  builder: (_) => ProviderJobDetailScreen(jobId: job.id, isTractor: job.isTractor))),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: job.color,
-                foregroundColor: Colors.white,
-                minimumSize: Size.zero,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-              ),
-              child: const Text('មើល', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-            ),
-          ]),
+    void open() => showRequestDetailSheet(
+          context: context,
+          request: request,
+          myUid: myUid,
+          myPosition: myPosition,
+        );
+
+    return GestureDetector(
+      onTap: open,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: color.withOpacity(0.2)),
+          boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 3))],
         ),
-      ]),
-    ),
-  );
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          // Header row
+          Row(children: [
+            Container(
+              width: 44, height: 44,
+              decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+              child: Center(child: Icon(icon, color: color, size: 22)),
+            ),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(child: Text(info['label'] as String,
+                    style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: Color(0xFF2D3142)))),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(color: const Color(0xFFE53935).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
+                  child: const Text('ថ្មី🔔', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFE53935))),
+                ),
+              ]),
+              const SizedBox(height: 3),
+              Text('👤 ${request.farmerName}', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+            ])),
+          ]),
+          const SizedBox(height: 12),
+          Container(height: 1, color: const Color(0xFFF0F0F0)),
+          const SizedBox(height: 12),
+
+          // Details grid
+          Row(children: [
+            Expanded(child: _InfoCell(icon: Icons.location_on_rounded, label: 'ទីតាំង', value: request.currentAddress, color: color)),
+            const SizedBox(width: 8),
+            Expanded(child: _InfoCell(icon: Icons.crop_square_rounded, label: 'ផ្ទៃដី', value: request.landLabel, color: color)),
+          ]),
+          if (distanceKm != null) ...[
+            const SizedBox(height: 8),
+            _InfoCell(icon: Icons.social_distance_rounded, label: 'ចម្ងាយពីអ្នក', value: '${distanceKm.toStringAsFixed(1)} គម', color: color),
+          ],
+
+          const SizedBox(height: 12),
+          // Price row
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: const Color(0xFFF8FAF5),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: const Color(0xFFE8F5E9)),
+            ),
+            child: Row(children: [
+              const Icon(Icons.payments_rounded, color: Color(0xFF43A047), size: 20),
+              const SizedBox(width: 8),
+              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${request.offerPrice.toStringAsFixed(0)} ៛',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: Color(0xFF2E7D32))),
+                Text('≈ \$${(request.offerPrice / 4100).toStringAsFixed(2)}',
+                    style: const TextStyle(fontSize: 11, color: AppColors.textMuted, fontWeight: FontWeight.w500)),
+              ]),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: open,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: color,
+                  foregroundColor: Colors.white,
+                  minimumSize: Size.zero,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Text('មើល', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+              ),
+            ]),
+          ),
+        ]),
+      ),
+    );
+  }
 }
 
 class _InfoCell extends StatelessWidget {
@@ -504,10 +542,10 @@ class _InfoCell extends StatelessWidget {
 }
 
 class _ScheduleCard extends StatelessWidget {
-  final String service, location, date, time;
-  final double areaHa;
-  const _ScheduleCard({required this.service, required this.location,
-      required this.date, required this.time, required this.areaHa});
+  final String service, farmerName, location, landLabel;
+  final double offerPrice;
+  const _ScheduleCard({required this.service, required this.farmerName,
+      required this.location, required this.landLabel, required this.offerPrice});
 
   @override
   Widget build(BuildContext context) => Container(
@@ -525,17 +563,21 @@ class _ScheduleCard extends StatelessWidget {
       const SizedBox(width: 12),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(service, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF2D3142))),
+        const SizedBox(height: 2),
+        Text('👤 $farmerName', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
         const SizedBox(height: 4),
         Row(children: [
           const Icon(Icons.location_on_outlined, size: 12, color: AppColors.textMuted),
           const SizedBox(width: 4),
-          Expanded(child: Text(location, style: const TextStyle(fontSize: 11, color: AppColors.textMuted))),
+          Expanded(child: Text(location, maxLines: 1, overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 11, color: AppColors.textMuted))),
         ]),
       ])),
       Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-        Text(time, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF2E7D32))),
+        Text('${offerPrice.toStringAsFixed(0)} ៛',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Color(0xFF2E7D32))),
         const SizedBox(height: 2),
-        Text('${areaHa.toStringAsFixed(1)} ha', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+        Text(landLabel, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
       ]),
     ]),
   );

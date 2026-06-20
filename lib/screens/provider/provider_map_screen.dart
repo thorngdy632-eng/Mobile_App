@@ -364,20 +364,37 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
   }
 
   void _showRequestSheet(BuildContext context, ServiceRequest r, String myUid) {
-    showModalBottomSheet(
+    showRequestDetailSheet(
       context: context,
-      isScrollControlled: true,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (sheetContext) => _RequestSheet(
-        request: r,
-        myUid: myUid,
-        myPosition: _myPosition,
-        parentContext: context,
-      ),
+      request: r,
+      myUid: myUid,
+      myPosition: _myPosition,
     );
   }
+}
+
+/// Public helper so other screens (e.g. the dashboard's "new job alerts")
+/// can open the exact same farmer-detail / accept / decline / chat sheet
+/// that the map uses, instead of duplicating that logic.
+void showRequestDetailSheet({
+  required BuildContext context,
+  required ServiceRequest request,
+  required String myUid,
+  Position? myPosition,
+}) {
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (sheetContext) => _RequestSheet(
+      request: request,
+      myUid: myUid,
+      myPosition: myPosition,
+      parentContext: context,
+    ),
+  );
 }
 
 // ─── Bottom sheet: farmer details + Accept / Decline / Message ───────────────

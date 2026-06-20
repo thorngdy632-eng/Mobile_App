@@ -20,6 +20,7 @@ import '../provider/equipment/equipment_detail_screen.dart';
 import 'farmer_map_screen.dart';
 import 'my_service_requests_screen.dart';
 import 'service_request_map_screen.dart';
+import '../auth/auth_wrapper.dart';
 
 // ─── Static data ─────────────────────────────────────────────────────────────
 
@@ -350,6 +351,12 @@ class _FarmerDrawer extends StatelessWidget {
                 onPressed: () async {
                   Navigator.pop(context);
                   await context.read<AuthProvider>().logout();
+                  if (context.mounted) {
+                    Navigator.of(context).pushAndRemoveUntil(
+                      MaterialPageRoute(builder: (_) => const AuthWrapper()),
+                      (_) => false,
+                    );
+                  }
                 },
               ),
             ),
@@ -1364,66 +1371,99 @@ class _MyRequestsStrip extends StatelessWidget {
               final r = reqs[i];
               final info = ServiceTypes.infoOf(r.serviceType);
               final color = info['color'] as Color;
-              return Container(
-                width: 200,
-                margin: const EdgeInsets.only(right: 10),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _kCard,
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: color.withOpacity(0.2)),
-                  boxShadow: const [
-                    BoxShadow(
-                        color: Color(0x0A000000),
-                        blurRadius: 8,
-                        offset: Offset(0, 2))
-                  ],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(children: [
-                      Icon(info['icon'] as IconData, color: color, size: 16),
-                      const SizedBox(width: 6),
-                      Text(info['label'] as String,
-                          style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w700,
-                              color: color)),
-                      const Spacer(),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: r.statusColor.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(r.statusLabel,
+              final isAccepted = r.status == 'accepted' && r.providerUid != null;
+              return GestureDetector(
+                onTap: isAccepted
+                    ? () => _openChatFromStrip(
+                        context, r.providerUid!, r.providerName ?? '')
+                    : null,
+                child: Container(
+                  width: 200,
+                  margin: const EdgeInsets.only(right: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: _kCard,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: color.withOpacity(0.2)),
+                    boxShadow: const [
+                      BoxShadow(
+                          color: Color(0x0A000000),
+                          blurRadius: 8,
+                          offset: Offset(0, 2))
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(children: [
+                        Icon(info['icon'] as IconData, color: color, size: 16),
+                        const SizedBox(width: 6),
+                        Text(info['label'] as String,
                             style: TextStyle(
-                                fontSize: 9,
+                                fontSize: 12,
                                 fontWeight: FontWeight.w700,
-                                color: r.statusColor)),
-                      ),
-                    ]),
-                    Row(children: [
-                      const Icon(Icons.location_on,
-                          size: 11, color: Color(0xFF9E9E9E)),
-                      const SizedBox(width: 3),
-                      Flexible(
-                          child: Text(r.currentAddress,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
+                                color: color)),
+                        const Spacer(),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: r.statusColor.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(r.statusLabel,
+                              style: TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: r.statusColor)),
+                        ),
+                      ]),
+                      if (isAccepted)
+                        Row(children: [
+                          const Icon(Icons.person,
+                              size: 11, color: Color(0xFF9E9E9E)),
+                          const SizedBox(width: 3),
+                          Flexible(
+                              child: Text(r.providerName ?? '',
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Color(0xFF757575)))),
+                        ])
+                      else
+                        Row(children: [
+                          const Icon(Icons.location_on,
+                              size: 11, color: Color(0xFF9E9E9E)),
+                          const SizedBox(width: 3),
+                          Flexible(
+                              child: Text(r.currentAddress,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                      fontSize: 10,
+                                      color: Color(0xFF757575)))),
+                        ]),
+                      if (isAccepted)
+                        Row(children: [
+                          const Icon(Icons.chat_bubble_rounded,
+                              size: 10, color: Color(0xFF43A047)),
+                          const SizedBox(width: 3),
+                          const Text('ផ្ញើសារ',
+                              style: TextStyle(
                                   fontSize: 10,
-                                  color: Color(0xFF757575)))),
-                    ]),
-                    Text('${r.offerPrice.toStringAsFixed(0)} រៀល · ${r.landLabel}',
-                        style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF424242))),
-                  ],
+                                  fontWeight: FontWeight.w700,
+                                  color: Color(0xFF43A047))),
+                        ])
+                      else
+                        Text('${r.offerPrice.toStringAsFixed(0)} រៀល · ${r.landLabel}',
+                            style: const TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w600,
+                                color: Color(0xFF424242))),
+                    ],
+                  ),
                 ),
               );
             },
@@ -1431,6 +1471,23 @@ class _MyRequestsStrip extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  Future<void> _openChatFromStrip(
+      BuildContext context, String peerId, String peerName) async {
+    final auth = context.read<AuthProvider>();
+    final chat = context.read<ChatProvider>();
+    final myUid = auth.currentUser?.uid;
+    if (myUid == null) return;
+
+    final chatRoomId =
+        await chat.ensureChatRoom(myUid: myUid, peerId: peerId);
+    if (!context.mounted) return;
+
+    Navigator.of(context).push(MaterialPageRoute(
+      builder: (_) => ChatScreen(
+          chatRoomId: chatRoomId, peerId: peerId, peerName: peerName),
+    ));
   }
 }
 
@@ -1951,7 +2008,15 @@ class _ProfileTab extends StatelessWidget {
                         shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(14)),
                       ),
-                      onPressed: () async => auth.logout(),
+                      onPressed: () async {
+                        await auth.logout();
+                        if (context.mounted) {
+                          Navigator.of(context).pushAndRemoveUntil(
+                            MaterialPageRoute(builder: (_) => const AuthWrapper()),
+                            (_) => false,
+                          );
+                        }
+                      },
                     ),
                   ),
                   const SizedBox(height: 24),

@@ -35,43 +35,58 @@ class AuthWrapper extends StatelessWidget {
 
 // ── Fetches the Firestore user profile, then routes by role ─────────────────
 
-class _ProfileLoader extends StatelessWidget {
+class _ProfileLoader extends StatefulWidget {
   final String uid;
   const _ProfileLoader({required this.uid});
 
   @override
-  Widget build(BuildContext context) {
-    return FutureBuilder<DocumentSnapshot>(
-      future: FirebaseFirestore.instance.collection('users').doc(uid).get(),
-      builder: (context, snap) {
-        debugPrint('ProfileLoader — connectionState: ${snap.connectionState}');
-        debugPrint('ProfileLoader — hasData: ${snap.hasData}');
-        debugPrint('ProfileLoader — docExists: ${snap.data?.exists}');
+  State<_ProfileLoader> createState() => _ProfileLoaderState();
+}
 
-        if (snap.connectionState == ConnectionState.waiting) {
-          return const _BootSplash();
-        }
+class _ProfileLoaderState extends State<_ProfileLoader> {
+  int _retries = 0;
+  static const int _maxRetries = 5;
 
-        if (snap.hasError) {
-          debugPrint('ProfileLoader — error: ${snap.error}');
-          return const LoginScreen();
-        }
+  @override
+  void initState() {
+    super.initState();
+    _fetchProfile();
+  }
 
-        if (!snap.hasData || !snap.data!.exists) {
-          debugPrint('ProfileLoader — no user doc for uid: $uid');
-          return const LoginScreen();
-        }
+  Future<void> _fetchProfile() async {
+    while (_retries < _maxRetries && mounted) {
+      final snap = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(widget.uid)
+          .get();
 
-        final data = snap.data!.data() as Map<String, dynamic>;
+      if (!mounted) return;
+
+      if (snap.exists && snap.data() != null) {
+        final data = snap.data()!;
         final role = UserRole.values.firstWhere(
           (r) => r.name == data['role'],
           orElse: () => UserRole.farmer,
         );
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => _routeByRole(role)),
+          (_) => false,
+        );
+        return;
+      }
 
-        debugPrint('ProfileLoader — role: ${role.name}');
-        return _routeByRole(role);
-      },
-    );
+      _retries++;
+      if (_retries < _maxRetries) {
+        await Future.delayed(Duration(milliseconds: 500 * _retries));
+      }
+    }
+
+    if (mounted) {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+        (_) => false,
+      );
+    }
   }
 
   Widget _routeByRole(UserRole role) {
@@ -83,6 +98,11 @@ class _ProfileLoader extends StatelessWidget {
       case UserRole.serviceProvider:
         return const ProviderHome();
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const _BootSplash();
   }
 }
 

@@ -7,19 +7,22 @@ import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/app_provider.dart';
 import '../../providers/chat_provider.dart';
+import '../../models/service_request.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
 import '../../models/chat_message.dart';
 import '../chat/chat_screen.dart';
 import 'tabs/provider_dashboard_tab.dart';
 import 'tabs/provider_jobs_screen.dart';
+import 'tabs/profile_tab.dart';
 import 'provider_map_screen.dart';
 
-/// ProviderHome: 4-tab bottom nav
+/// ProviderHome: 5-tab bottom nav
 /// Tab 0: Dashboard (job alerts, stats, categories)
 /// Tab 1: Jobs (list of all incoming service requests)
 /// Tab 2: Map (customer locations, live tracking)
-/// Tab 3: Chat + Profile combined as "More" menu
+/// Tab 3: Chat (conversations with farmers)
+/// Tab 4: Profile (edit info, logout)
 class ProviderHome extends StatefulWidget {
   const ProviderHome({super.key});
 
@@ -35,6 +38,7 @@ class _ProviderHomeState extends State<ProviderHome> {
     _NavItem(Icons.work_outline, Icons.work, 'ការងារ'),
     _NavItem(Icons.map_outlined, Icons.map, 'ផែនទី'),
     _NavItem(Icons.chat_bubble_outline, Icons.chat_bubble, 'ការសន្ទនា'),
+    _NavItem(Icons.person_outline, Icons.person, 'គណនី'),
   ];
 
   @override
@@ -52,14 +56,18 @@ class _ProviderHomeState extends State<ProviderHome> {
           const ProviderJobsScreen(),
           const ProviderMapScreen(),
           _buildChatTab(myUid),
+          const ProviderProfileTab(),
         ],
       ),
       bottomNavigationBar: StreamBuilder<int>(
         stream: context.read<ChatProvider>().totalUnreadStream(myUid),
         builder: (ctx, snap) {
           final unread = snap.data ?? 0;
-          final pendingJobs = context.watch<AppProvider>().pendingTractorJobs.length +
-              context.watch<AppProvider>().pendingDroneJobs.length;
+          final app = context.watch<AppProvider>();
+          final myServiceType = user?.serviceType ?? ServiceTypes.plowing;
+          final pendingJobs = app
+              .pendingServiceRequestsForProvider(myServiceType, excludeDeclinedBy: myUid)
+              .length;
 
           return Container(
             decoration: BoxDecoration(
