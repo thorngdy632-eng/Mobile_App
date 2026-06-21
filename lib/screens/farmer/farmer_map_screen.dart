@@ -164,7 +164,7 @@ class _FarmerMapScreenState extends State<FarmerMapScreen> {
         maxChildSize: 0.85,
         expand: false,
         builder: (context, scrollController) => Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+          padding: EdgeInsets.fromLTRB(16, 12, 16, MediaQuery.of(context).padding.bottom + 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -435,7 +435,7 @@ class _FarmerMapScreenState extends State<FarmerMapScreen> {
               ),
             ),
           Positioned(
-            bottom: 16,
+            bottom: MediaQuery.of(context).padding.bottom + 16,
             left: 16,
             child: Card(
               child: Padding(
@@ -518,7 +518,7 @@ class _FarmerMapScreenState extends State<FarmerMapScreen> {
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       builder: (_) => Padding(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,

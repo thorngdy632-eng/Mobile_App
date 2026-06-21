@@ -726,7 +726,7 @@ class _RequestFormSheetState extends State<_RequestFormSheet> {
         bottom: MediaQuery.of(context).viewInsets.bottom,
       ),
       child: SingleChildScrollView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+        padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 24),
         child: Form(
           key: _formKey,
           child: Column(

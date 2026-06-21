@@ -48,7 +48,7 @@ class MyServiceRequestsScreen extends StatelessWidget {
       body: requests.isEmpty
           ? _EmptyState()
           : ListView.builder(
-              padding: const EdgeInsets.fromLTRB(16, 16, 16, 24),
+              padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
               itemCount: requests.length,
               itemBuilder: (context, index) =>
                   _RequestCard(r: requests[index]),

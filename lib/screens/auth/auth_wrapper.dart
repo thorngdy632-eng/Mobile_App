@@ -1,66 +1,78 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide AuthProvider;
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../models/user_model.dart';
+import '../../providers/auth_provider.dart';
 import '../admin/admin_dashboard.dart';
 import '../farmer/farmer_home.dart';
 import '../provider/provider_home.dart';
 import 'login_screen.dart';
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, snapshot) {
-        debugPrint('AuthWrapper — connectionState: ${snapshot.connectionState}');
-        debugPrint('AuthWrapper — hasData: ${snapshot.hasData}');
-        debugPrint('AuthWrapper — currentUser: ${snapshot.data?.uid}');
-
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const _BootSplash();
-        }
-
-        if (snapshot.data != null) {
-          return _ProfileLoader(uid: snapshot.data!.uid);
-        }
-
-        return const LoginScreen();
-      },
-    );
-  }
+  State<AuthWrapper> createState() => _AuthWrapperState();
 }
 
-// ── Fetches the Firestore user profile, then routes by role ─────────────────
-
-class _ProfileLoader extends StatefulWidget {
-  final String uid;
-  const _ProfileLoader({required this.uid});
-
-  @override
-  State<_ProfileLoader> createState() => _ProfileLoaderState();
-}
-
-class _ProfileLoaderState extends State<_ProfileLoader> {
-  int _retries = 0;
-  static const int _maxRetries = 5;
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _navigated = false;
 
   @override
   void initState() {
     super.initState();
-    _fetchProfile();
+    _checkAuth();
   }
 
-  Future<void> _fetchProfile() async {
-    while (_retries < _maxRetries && mounted) {
+  void _checkAuth() {
+    // 1) FAST PATH — synchronous read from Firebase local cache (instant on Android)
+    final fbUser = FirebaseAuth.instance.currentUser;
+    if (fbUser != null) {
+      _navigated = true;
+      _goToHome(fbUser.uid);
+      return;
+    }
+
+    // 2) SLOW PATH — Firebase Auth hasn't restored session yet, wait for the stream
+    FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      if (!mounted || _navigated) return;
+
+      if (user != null) {
+        _navigated = true;
+        _goToHome(user.uid);
+      } else {
+        // Stream emitted null = truly not logged in
+        _navigated = true;
+        _goToLogin();
+      }
+    });
+  }
+
+  Future<void> _goToHome(String uid) async {
+    final cachedRole = await AuthProvider.getCachedRole();
+
+    if (!mounted) return;
+
+    Widget home;
+    if (cachedRole != null) {
+      home = _routeByRole(cachedRole);
+    } else {
+      home = await _fetchRoleFromFirestore(uid);
+    }
+
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => home),
+      (_) => false,
+    );
+  }
+
+  Future<Widget> _fetchRoleFromFirestore(String uid) async {
+    try {
       final snap = await FirebaseFirestore.instance
           .collection('users')
-          .doc(widget.uid)
-          .get();
-
-      if (!mounted) return;
+          .doc(uid)
+          .get()
+          .timeout(const Duration(seconds: 10));
 
       if (snap.exists && snap.data() != null) {
         final data = snap.data()!;
@@ -68,25 +80,18 @@ class _ProfileLoaderState extends State<_ProfileLoader> {
           (r) => r.name == data['role'],
           orElse: () => UserRole.farmer,
         );
-        Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => _routeByRole(role)),
-          (_) => false,
-        );
-        return;
+        return _routeByRole(role);
       }
+    } catch (_) {}
+    return _routeByRole(UserRole.farmer);
+  }
 
-      _retries++;
-      if (_retries < _maxRetries) {
-        await Future.delayed(Duration(milliseconds: 500 * _retries));
-      }
-    }
-
-    if (mounted) {
-      Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const LoginScreen()),
-        (_) => false,
-      );
-    }
+  void _goToLogin() {
+    if (!mounted) return;
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const LoginScreen()),
+      (_) => false,
+    );
   }
 
   Widget _routeByRole(UserRole role) {
@@ -101,12 +106,10 @@ class _ProfileLoaderState extends State<_ProfileLoader> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    return const _BootSplash();
-  }
+  Widget build(BuildContext context) => const _BootSplash();
 }
 
-// ── Themed splash shown while Firebase resolves the auth token ───────────────
+// ── Themed splash ───────────────────────────────────────────────────────────
 
 class _BootSplash extends StatelessWidget {
   const _BootSplash();

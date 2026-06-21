@@ -1,10 +1,17 @@
 // lib/screens/provider/notifications/notifications_screen.dart
+//
+// Role-aware notification screen:
+//   • Farmer  → status updates on their own requests + chat from providers
+//   • Provider → incoming job alerts + accepted/completed/cancelled jobs + chat
+//   • Admin   → recent activity across all requests
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../../providers/app_provider.dart';
 import '../../../providers/auth_provider.dart';
 import '../../../providers/chat_provider.dart';
 import '../../../models/service_request.dart';
+import '../../../models/user_model.dart';
 import '../../../theme/app_colors.dart';
 import '../../../theme/app_theme.dart';
 import '../provider_map_screen.dart';
@@ -21,104 +28,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final app = context.watch<AppProvider>();
-    final myUid = auth.currentUser?.uid ?? '';
-    final myServiceType =
-        auth.currentUser?.serviceType ?? ServiceTypes.plowing;
-
-    // ── Build notifications from real Firestore data ──
+    final user = auth.currentUser;
+    final myUid = user?.uid ?? '';
+    final role = user?.role;
 
     final notifications = <_NotifItem>[];
 
-    // 1. New pending requests matching my service type (new job alerts)
-    final pending = app.pendingServiceRequestsForProvider(
-      myServiceType,
-      excludeDeclinedBy: myUid,
-    );
-    for (final r in pending) {
-      final info = ServiceTypes.infoOf(r.serviceType);
-      notifications.add(_NotifItem(
-        icon: info['icon'] as IconData,
-        iconColor: const Color(0xFFE53935),
-        title: 'ការងារថ្មី — ${info['label']}',
-        body:
-            '${r.farmerName} ស្នើសេវា ${info['label']} នៅ ${r.currentAddress} (${r.offerPrice.toStringAsFixed(0)} រៀល)',
-        time: _fmtTime(r.createdAt),
-        type: _NotifType.newJob,
-        request: r,
-      ));
-    }
-
-    // 2. Requests I accepted (active jobs)
-    final mine =
-        app.acceptedServiceRequestsForProvider(myUid);
-    for (final r in mine) {
-      final info = ServiceTypes.infoOf(r.serviceType);
-      notifications.add(_NotifItem(
-        icon: Icons.check_circle_outline_rounded,
-        iconColor: const Color(0xFF43A047),
-        title: 'ការងារដែលបានទទួល — ${info['label']}',
-        body:
-            'អ្នកបានទទួលការងារ ${info['label']} ពី ${r.farmerName} នៅ ${r.currentAddress}',
-        time: _fmtTime(r.createdAt),
-        type: _NotifType.accepted,
-        request: r,
-      ));
-    }
-
-    // 3. Completed requests by me
-    final completed = app.serviceRequests
-        .where((r) => r.providerUid == myUid && r.status == 'completed')
-        .toList();
-    for (final r in completed) {
-      final info = ServiceTypes.infoOf(r.serviceType);
-      notifications.add(_NotifItem(
-        icon: Icons.emoji_events_rounded,
-        iconColor: AppTheme.providerOrange,
-        title: 'ការងារបានបញ្ចប់ — ${info['label']}',
-        body:
-            'ការងារ ${info['label']} ជាមួយ ${r.farmerName} បានបញ្ចប់ដោយជោគជ័យ',
-        time: _fmtTime(r.createdAt),
-        type: _NotifType.completed,
-        request: r,
-      ));
-    }
-
-    // 4. Cancelled requests by farmer (for jobs I accepted)
-    final cancelled = app.serviceRequests
-        .where((r) => r.providerUid == myUid && r.status == 'cancelled')
-        .toList();
-    for (final r in cancelled) {
-      final info = ServiceTypes.infoOf(r.serviceType);
-      notifications.add(_NotifItem(
-        icon: Icons.cancel_outlined,
-        iconColor: const Color(0xFFEF5350),
-        title: 'ការងារបានបោះបង់ — ${info['label']}',
-        body:
-            '${r.farmerName} បានបោះបង់ការងារ ${info['label']} នៅ ${r.currentAddress}',
-        time: _fmtTime(r.createdAt),
-        type: _NotifType.cancelled,
-        request: r,
-      ));
-    }
-
-    // 5. New chat messages
-    // We derive from accepted requests — if the farmer sent a message
-    // we show it as a notification
-    for (final r in mine) {
-      final info = ServiceTypes.infoOf(r.serviceType);
-      notifications.add(_NotifItem(
-        icon: Icons.chat_bubble_outline_rounded,
-        iconColor: const Color(0xFF1E88E5),
-        title: 'សារថ្មីពី ${r.farmerName}',
-        body: 'អ្នកមានសារថ្មីសម្រាប់ការងារ ${info['label']}',
-        time: _fmtTime(r.createdAt),
-        type: _NotifType.message,
-        request: r,
-      ));
+    if (role == UserRole.farmer) {
+      _buildFarmerNotifications(app, myUid, notifications);
+    } else if (role == UserRole.serviceProvider) {
+      _buildProviderNotifications(app, myUid, user?.serviceType, notifications);
+    } else {
+      _buildAdminNotifications(app, notifications);
     }
 
     // Sort: newest first
-    notifications.sort((a, b) => b.request.createdAt.compareTo(a.request.createdAt));
+    notifications.sort(
+        (a, b) => b.request.createdAt.compareTo(a.request.createdAt));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -150,7 +76,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                           fontWeight: FontWeight.w600,
                           color: Colors.grey.shade500)),
                   const SizedBox(height: 6),
-                  Text('ការជូនដំណឹងនឹងបង្ហាញនៅទីនេះ\nនៅពេលមានការងារថ្មី ឬសារថ្មី',
+                  Text('ការជូនដំណឹងនឹងបង្ហាញនៅទីនេះ\nនៅពេលមានការចាត់ចែងថ្មី ឬសារថ្មី',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                           fontSize: 13, color: Colors.grey.shade400)),
@@ -158,15 +84,246 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               ),
             )
           : ListView.separated(
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.fromLTRB(
+                  16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
               itemCount: notifications.length,
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (_, i) {
                 final n = notifications[i];
-                return _NotifCard(item: n);
+                return _NotifCard(item: n, myUid: myUid);
               },
             ),
     );
+  }
+
+  // ── Farmer notifications ──────────────────────────────────────────────────
+  void _buildFarmerNotifications(
+    AppProvider app,
+    String myUid,
+    List<_NotifItem> out,
+  ) {
+    final myRequests = app.serviceRequestsForFarmer(myUid);
+
+    for (final r in myRequests) {
+      final info = ServiceTypes.infoOf(r.serviceType);
+
+      // Accepted by a provider
+      if (r.status == 'accepted') {
+        out.add(_NotifItem(
+          icon: Icons.check_circle_outline_rounded,
+          iconColor: const Color(0xFF43A047),
+          title: 'សំណើបានទទួល — ${info['label']}',
+          body:
+              'អ្នកផ្តល់សេវា ${r.providerName ?? 'មិនស្គាល់'} បានទទួលសំណើ ${info['label']} របស់អ្នកនៅ ${r.currentAddress}',
+          time: _fmtTime(r.createdAt),
+          type: _NotifType.accepted,
+          request: r,
+        ));
+      }
+
+      // Completed
+      if (r.status == 'completed') {
+        out.add(_NotifItem(
+          icon: Icons.emoji_events_rounded,
+          iconColor: AppTheme.providerOrange,
+          title: 'សំណើបានបញ្ចប់ — ${info['label']}',
+          body:
+              'ការងារ ${info['label']} នៅ ${r.currentAddress} បានបញ្ចប់ដោយជោគជ័យ។ ${r.offerPrice.toStringAsFixed(0)} រៀល',
+          time: _fmtTime(r.createdAt),
+          type: _NotifType.completed,
+          request: r,
+        ));
+      }
+
+      // Declined
+      if (r.status == 'declined') {
+        out.add(_NotifItem(
+          icon: Icons.cancel_outlined,
+          iconColor: const Color(0xFFEF5350),
+          title: 'សំណើបានបដិសេធ — ${info['label']}',
+          body:
+              'សំណើ ${info['label']} របស់អ្នកនៅ ${r.currentAddress} បានបដិសេធ។ សូមព្យាយាមម្តងទៀត។',
+          time: _fmtTime(r.createdAt),
+          type: _NotifType.cancelled,
+          request: r,
+        ));
+      }
+
+      // Cancelled (by farmer themselves, just for record)
+      if (r.status == 'cancelled') {
+        out.add(_NotifItem(
+          icon: Icons.info_outline_rounded,
+          iconColor: Colors.grey,
+          title: 'សំណើបានបោះបង់ — ${info['label']}',
+          body:
+              'អ្នកបានបោះបង់សំណើ ${info['label']} នៅ ${r.currentAddress}',
+          time: _fmtTime(r.createdAt),
+          type: _NotifType.cancelled,
+          request: r,
+        ));
+      }
+
+      // Chat message from provider (if provider is assigned)
+      if (r.providerUid != null &&
+          r.providerUid!.isNotEmpty &&
+          (r.status == 'accepted' || r.status == 'completed')) {
+        out.add(_NotifItem(
+          icon: Icons.chat_bubble_outline_rounded,
+          iconColor: const Color(0xFF1E88E5),
+          title: 'សារពី ${r.providerName ?? 'អ្នកផ្តល់សេវា'}',
+          body: 'អ្នកមានសារថ្មីសម្រាប់ការងារ ${info['label']}',
+          time: _fmtTime(r.createdAt),
+          type: _NotifType.message,
+          request: r,
+        ));
+      }
+    }
+  }
+
+  // ── Provider notifications (original behavior) ───────────────────────────
+  void _buildProviderNotifications(
+    AppProvider app,
+    String myUid,
+    String? myServiceType,
+    List<_NotifItem> out,
+  ) {
+    final serviceType = myServiceType ?? ServiceTypes.plowing;
+
+    // 1. New pending requests matching my service type
+    final pending =
+        app.pendingServiceRequestsForProvider(serviceType, excludeDeclinedBy: myUid);
+    for (final r in pending) {
+      final info = ServiceTypes.infoOf(r.serviceType);
+      out.add(_NotifItem(
+        icon: info['icon'] as IconData,
+        iconColor: const Color(0xFFE53935),
+        title: 'ការងារថ្មី — ${info['label']}',
+        body:
+            '${r.farmerName} ស្នើសេវា ${info['label']} នៅ ${r.currentAddress} (${r.offerPrice.toStringAsFixed(0)} រៀល)',
+        time: _fmtTime(r.createdAt),
+        type: _NotifType.newJob,
+        request: r,
+      ));
+    }
+
+    // 2. Requests I accepted (active jobs)
+    final mine = app.acceptedServiceRequestsForProvider(myUid);
+    for (final r in mine) {
+      final info = ServiceTypes.infoOf(r.serviceType);
+      out.add(_NotifItem(
+        icon: Icons.check_circle_outline_rounded,
+        iconColor: const Color(0xFF43A047),
+        title: 'ការងារដែលបានទទួល — ${info['label']}',
+        body:
+            'អ្នកបានទទួលការងារ ${info['label']} ពី ${r.farmerName} នៅ ${r.currentAddress}',
+        time: _fmtTime(r.createdAt),
+        type: _NotifType.accepted,
+        request: r,
+      ));
+    }
+
+    // 3. Completed requests by me
+    final completed = app.serviceRequests
+        .where((r) => r.providerUid == myUid && r.status == 'completed')
+        .toList();
+    for (final r in completed) {
+      final info = ServiceTypes.infoOf(r.serviceType);
+      out.add(_NotifItem(
+        icon: Icons.emoji_events_rounded,
+        iconColor: AppTheme.providerOrange,
+        title: 'ការងារបានបញ្ចប់ — ${info['label']}',
+        body:
+            'ការងារ ${info['label']} ជាមួយ ${r.farmerName} បានបញ្ចប់ដោយជោគជ័យ',
+        time: _fmtTime(r.createdAt),
+        type: _NotifType.completed,
+        request: r,
+      ));
+    }
+
+    // 4. Cancelled requests by farmer (for jobs I accepted)
+    final cancelled = app.serviceRequests
+        .where((r) => r.providerUid == myUid && r.status == 'cancelled')
+        .toList();
+    for (final r in cancelled) {
+      final info = ServiceTypes.infoOf(r.serviceType);
+      out.add(_NotifItem(
+        icon: Icons.cancel_outlined,
+        iconColor: const Color(0xFFEF5350),
+        title: 'ការងារបានបោះបង់ — ${info['label']}',
+        body:
+            '${r.farmerName} បានបោះបង់ការងារ ${info['label']} នៅ ${r.currentAddress}',
+        time: _fmtTime(r.createdAt),
+        type: _NotifType.cancelled,
+        request: r,
+      ));
+    }
+
+    // 5. Chat messages from active jobs
+    for (final r in mine) {
+      final info = ServiceTypes.infoOf(r.serviceType);
+      out.add(_NotifItem(
+        icon: Icons.chat_bubble_outline_rounded,
+        iconColor: const Color(0xFF1E88E5),
+        title: 'សារថ្មីពី ${r.farmerName}',
+        body: 'អ្នកមានសារថ្មីសម្រាប់ការងារ ${info['label']}',
+        time: _fmtTime(r.createdAt),
+        type: _NotifType.message,
+        request: r,
+      ));
+    }
+  }
+
+  // ── Admin notifications ──────────────────────────────────────────────────
+  void _buildAdminNotifications(
+    AppProvider app,
+    List<_NotifItem> out,
+  ) {
+    // Show recent activity across all requests
+    final recent = app.serviceRequests.take(20).toList();
+    for (final r in recent) {
+      final info = ServiceTypes.infoOf(r.serviceType);
+      IconData icon;
+      Color color;
+      String title;
+
+      switch (r.status) {
+        case 'accepted':
+          icon = Icons.check_circle_outline_rounded;
+          color = const Color(0xFF43A047);
+          title = 'សំណើបានទទួល — ${info['label']}';
+          break;
+        case 'completed':
+          icon = Icons.emoji_events_rounded;
+          color = AppTheme.providerOrange;
+          title = 'ការងារបានបញ្ចប់ — ${info['label']}';
+          break;
+        case 'declined':
+          icon = Icons.cancel_outlined;
+          color = const Color(0xFFEF5350);
+          title = 'សំណើបានបដិសេធ — ${info['label']}';
+          break;
+        case 'cancelled':
+          icon = Icons.info_outline_rounded;
+          color = Colors.grey;
+          title = 'សំណើបានបោះបង់ — ${info['label']}';
+          break;
+        default:
+          icon = info['icon'] as IconData;
+          color = const Color(0xFF1565C0);
+          title = 'សំណើថ្មី — ${info['label']}';
+      }
+
+      out.add(_NotifItem(
+        icon: icon,
+        iconColor: color,
+        title: title,
+        body:
+            '${r.farmerName} → ${r.providerName ?? 'មិនទាន់មានអ្នកផ្តល់សេវា'} | ${r.currentAddress} (${r.offerPrice.toStringAsFixed(0)} រៀល)',
+        time: _fmtTime(r.createdAt),
+        type: _NotifType.newJob,
+        request: r,
+      ));
+    }
   }
 
   static String _fmtTime(DateTime dt) {
@@ -203,14 +360,13 @@ class _NotifItem {
 
 class _NotifCard extends StatelessWidget {
   final _NotifItem item;
-  const _NotifCard({required this.item});
+  final String myUid;
+  const _NotifCard({required this.item, required this.myUid});
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        // Navigate to the request detail sheet for new jobs,
-        // or open chat for messages
         if (item.type == _NotifType.message) {
           _openChat(context);
         } else {
@@ -229,8 +385,7 @@ class _NotifCard extends StatelessWidget {
           ),
           title: Text(
             item.title,
-            style: const TextStyle(
-                fontWeight: FontWeight.w600, fontSize: 14),
+            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
           ),
           subtitle: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -258,8 +413,6 @@ class _NotifCard extends StatelessWidget {
   }
 
   void _openRequest(BuildContext context) {
-    final auth = context.read<AuthProvider>();
-    final myUid = auth.currentUser?.uid ?? '';
     showRequestDetailSheet(
       context: context,
       request: item.request,
@@ -268,20 +421,26 @@ class _NotifCard extends StatelessWidget {
   }
 
   Future<void> _openChat(BuildContext context) async {
-    final auth = context.read<AuthProvider>();
     final chat = context.read<ChatProvider>();
-    final myUid = auth.currentUser?.uid;
-    if (myUid == null) return;
+    if (myUid.isEmpty) return;
 
-    final chatRoomId = await chat.ensureChatRoom(
-        myUid: myUid, peerId: item.request.farmerUid);
+    // Determine the peer: if I'm the farmer, peer is provider; if I'm provider, peer is farmer
+    final r = item.request;
+    final peerId =
+        r.providerUid != null && r.providerUid == myUid ? r.farmerUid : (r.providerUid ?? r.farmerUid);
+    final peerName =
+        r.providerUid != null && r.providerUid == myUid
+            ? r.farmerName
+            : (r.providerName ?? r.farmerName);
+
+    final chatRoomId = await chat.ensureChatRoom(myUid: myUid, peerId: peerId);
     if (!context.mounted) return;
 
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => ChatScreen(
         chatRoomId: chatRoomId,
-        peerId: item.request.farmerUid,
-        peerName: item.request.farmerName,
+        peerId: peerId,
+        peerName: peerName,
       ),
     ));
   }

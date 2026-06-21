@@ -361,41 +361,53 @@ class _HeroHeader extends StatelessWidget {
           ),
         ]),
 
-        if (!collapsed) ...[
-          const SizedBox(height: 20),
-          // Service badge
-          if (user?.serviceType != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.15),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white30),
+        ClipRect(
+          child: AnimatedSize(
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeInOut,
+            child: SizedBox(
+              height: collapsed ? 0 : null,
+              child: Opacity(
+                opacity: collapsed ? 0.0 : 1.0,
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  const SizedBox(height: 20),
+                  // Service badge
+                  if (user?.serviceType != null)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: Colors.white30),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.asset(
+                            _serviceImgCfgs[user!.serviceType]?.imagePath ?? 'assets/images/app_icon.png',
+                            width: 16,
+                            height: 16,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Icon(
+                                ServiceTypes.infoOf(user.serviceType!)['icon'] as IconData,
+                                size: 14, color: Colors.white),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Text(ServiceTypes.labelOf(user.serviceType!),
+                            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
+                      ]),
+                    ),
+                  const SizedBox(height: 10),
+                  const Text('ផ្ទាំងគ្រប់គ្រងសេវា',
+                      style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, height: 1.2)),
+                  const Text('ទទួលការងារ · ផ្ញើការងារ · ចំណូល',
+                      style: TextStyle(color: Colors.white60, fontSize: 13)),
+                ]),
               ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: Image.asset(
-                    _serviceImgCfgs[user!.serviceType]?.imagePath ?? 'assets/images/app_icon.png',
-                    width: 16,
-                    height: 16,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => Icon(
-                        ServiceTypes.infoOf(user.serviceType!)['icon'] as IconData,
-                        size: 14, color: Colors.white),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(ServiceTypes.labelOf(user.serviceType!),
-                    style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
-              ]),
             ),
-          const SizedBox(height: 10),
-          const Text('ផ្ទាំងគ្រប់គ្រងសេវា',
-              style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, height: 1.2)),
-          const Text('ទទួលការងារ · ផ្ញើការងារ · ចំណូល',
-              style: TextStyle(color: Colors.white60, fontSize: 13)),
-        ],
+          ),
+        ),
       ]),
     );
   }

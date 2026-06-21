@@ -64,7 +64,7 @@ class AdminStatisticsScreen extends StatelessWidget {
             },
             child: ListView(
               physics: const AlwaysScrollableScrollPhysics(),
-              padding: const EdgeInsets.all(16),
+              padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
               children: [
                 // ── Totals ────────────────────────────────────────────────
                 Row(

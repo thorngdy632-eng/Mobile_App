@@ -66,5 +66,9 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>តស់ជួល! ត្រូវការទីតាំងរបស់អ្នកដើម្បីបង្ហាញសេវាកម្មក្បែរអ្នក។</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>តស់ជួល! ត្រូវការទីតាំងរបស់អ្នកដើម្បីបង្ហាញសេវាកម្មក្បែរអ្នក។</string>
 </dict>
 </plist>

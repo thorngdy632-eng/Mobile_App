@@ -42,7 +42,7 @@ class _LoadDetailScreenState extends State<LoadDetailScreen> {
         leading: BackButton(onPressed: () => Navigator.pop(context)),
       ),
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
+        padding: EdgeInsets.fromLTRB(16, 16, 16, MediaQuery.of(context).padding.bottom + 16),
         child: Column(
           children: [
             // Hero icon block

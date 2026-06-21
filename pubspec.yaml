@@ -58,7 +58,10 @@ dependency_overrides:
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true
-  image_path: "assets/images/app_icon.png" # ⚠️ ត្រូវប្រាកដថាប្អូនមានរូបភាពឈ្មោះ app_icon.png នៅក្នុងថតនេះ
+  web:
+    generate: true
+    image_path: "assets/images/app_icon.png"
+  image_path: "assets/images/app_icon.png"
   min_sdk_android: 21
 
 flutter:

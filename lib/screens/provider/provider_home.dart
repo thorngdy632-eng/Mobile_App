@@ -47,6 +47,12 @@ class _ProviderHomeState extends State<ProviderHome> {
     final user = auth.currentUser;
     final myUid = user?.uid ?? '';
 
+    final app = context.watch<AppProvider>();
+    final myServiceType = user?.serviceType ?? ServiceTypes.plowing;
+    final pendingJobs = app
+        .pendingServiceRequestsForProvider(myServiceType, excludeDeclinedBy: myUid)
+        .length;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
       body: IndexedStack(
@@ -63,11 +69,6 @@ class _ProviderHomeState extends State<ProviderHome> {
         stream: context.read<ChatProvider>().totalUnreadStream(myUid),
         builder: (ctx, snap) {
           final unread = snap.data ?? 0;
-          final app = context.watch<AppProvider>();
-          final myServiceType = user?.serviceType ?? ServiceTypes.plowing;
-          final pendingJobs = app
-              .pendingServiceRequestsForProvider(myServiceType, excludeDeclinedBy: myUid)
-              .length;
 
           return Container(
             decoration: BoxDecoration(

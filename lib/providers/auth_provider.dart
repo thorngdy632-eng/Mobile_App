@@ -1,24 +1,24 @@
 // lib/providers/auth_provider.dart
-import 'dart:convert'; // 🟢 ហៅប្រើសម្រាប់បំប្លែងរូបភាពទៅជា Base64 String
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:image_picker/image_picker.dart'; // Works perfectly on Web + Mobile
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user_model.dart';
 
 class AuthProvider extends ChangeNotifier {
   final FirebaseAuth _auth = FirebaseAuth.instance;
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  // ── SharedPreferences keys ───────────────────────────────────────────────
+  static const _kIsLoggedIn = 'isLoggedIn';
+  static const _kUserRole = 'userRole';
+  static const _kCachedRole = 'cached_user_role';
+  static const _kCachedUid = 'cached_user_uid';
+  static const _kCachedName = 'cached_user_name';
+
   // ── Reserved admin account ───────────────────────────────────────────────
-  // Nobody can choose the "admin" role from the Register form (it is not
-  // even shown as an option there). The ONLY way to obtain the admin role
-  // is to register or log in with exactly this email + password. Whoever
-  // controls this single credential pair is the one and only admin.
-  //
-  // This check happens here — server-side from the client's perspective,
-  // i.e. it is enforced in the one code path that writes `role` to
-  // Firestore — so it cannot be bypassed by tampering with the UI.
   static const String _adminEmail = 'admin@gmail.com';
   static const String _adminPassword = 'admin@123';
 
@@ -63,11 +63,11 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> _fetchUserProfile(String uid) async {
     try {
-      final doc = await _db.collection('users').doc(uid).get();
+      final doc = await _db.collection('users').doc(uid).get().timeout(const Duration(seconds: 10));
       if (doc.exists && doc.data() != null) {
         _currentUser = UserModel.fromMap(doc.data()!, uid);
+        await _cacheProfile(_currentUser!);
       } else {
-        // Firestore doc missing — create a minimal UserModel so UID is always available
         final fbUser = _auth.currentUser;
         _currentUser = UserModel(
           uid: uid,
@@ -81,8 +81,87 @@ class AuthProvider extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error fetching user profile: $e');
+      final cached = await _loadCachedProfile();
+      if (cached != null) {
+        _currentUser = cached;
+        debugPrint('✅ Restored profile from cache: ${cached.role.name}');
+      }
     }
     notifyListeners();
+  }
+
+  // ── SharedPreferences cache helpers ──────────────────────────────────────
+
+  Future<void> _cacheProfile(UserModel user) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_kCachedUid, user.uid);
+    await prefs.setString(_kCachedRole, user.role.name);
+    await prefs.setString(_kCachedName, user.fullName);
+  }
+
+  /// Saves explicit isLoggedIn + userRole keys (Web/iOS persistence)
+  Future<void> _saveLoginSession(UserModel user) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_kIsLoggedIn, true);
+    await prefs.setString(_kUserRole, user.role.name);
+    await _cacheProfile(user);
+  }
+
+  Future<UserModel?> _loadCachedProfile() async {
+    final prefs = await SharedPreferences.getInstance();
+    final uid = prefs.getString(_kCachedUid);
+    final roleName = prefs.getString(_kCachedRole);
+    final name = prefs.getString(_kCachedName);
+    if (uid == null || roleName == null) return null;
+    final role = UserRole.values.firstWhere(
+      (r) => r.name == roleName,
+      orElse: () => UserRole.farmer,
+    );
+    return UserModel(
+      uid: uid,
+      fullName: name ?? 'អ្នកប្រើប្រាស់',
+      email: '',
+      phoneNumber: '',
+      role: role,
+      createdAt: DateTime.now(),
+    );
+  }
+
+  static Future<UserRole?> getCachedRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    final roleName = prefs.getString(_kCachedRole);
+    if (roleName == null) return null;
+    return UserRole.values.firstWhere(
+      (r) => r.name == roleName,
+      orElse: () => UserRole.farmer,
+    );
+  }
+
+  static Future<String?> getCachedUid() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kCachedUid);
+  }
+
+  /// Reads explicit login flag from SharedPreferences
+  static Future<bool> isSessionCached() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_kIsLoggedIn) ?? false;
+  }
+
+  /// Reads cached user role string from SharedPreferences
+  static Future<String?> getCachedRoleString() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getString(_kUserRole);
+  }
+
+  /// Clears ALL cached auth data (called on logout)
+  static Future<void> clearCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_kIsLoggedIn);
+    await prefs.remove(_kUserRole);
+    await prefs.remove(_kCachedUid);
+    await prefs.remove(_kCachedRole);
+    await prefs.remove(_kCachedName);
   }
 
   // ── Login ─────────────────────────────────────────────────────────────────
@@ -98,6 +177,12 @@ class AuthProvider extends ChangeNotifier {
         password: password,
       );
       await _fetchUserProfile(credential.user!.uid);
+
+      // Explicitly save login session for Web/iOS persistence
+      if (_currentUser != null) {
+        await _saveLoginSession(_currentUser!);
+      }
+
       _isLoading = false;
       notifyListeners();
       return null;
@@ -114,7 +199,7 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  // ── Register ជំនាន់ថ្មី (លែងប្រើ Firebase Storage រួចរាល់ ១០០%) ───────────────
+  // ── Register ─────────────────────────────────────────────────────────────
 
   Future<String?> register({
     required String fullName,
@@ -125,15 +210,9 @@ class AuthProvider extends ChangeNotifier {
     String? serviceType,
     String? idCard,
     String? address,
-    XFile? idCardFrontFile, // ទទួលយក XFile ពី register_screen.dart
+    XFile? idCardFrontFile,
     XFile? idCardBackFile,
   }) async {
-    // ── Role enforcement (server-side from the client's point of view) ─────
-    // The Register screen no longer offers "admin" as a choice, but we
-    // never trust the caller anyway: if the exact reserved admin email +
-    // password are used, force role = admin. For every other case, if a
-    // tampered/old client somehow still sends role = admin, downgrade it
-    // to farmer so nobody can self-promote to admin.
     UserRole effectiveRole = role;
     if (_isReservedAdminCredential(email, password)) {
       effectiveRole = UserRole.admin;
@@ -148,7 +227,6 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // ── ជំហានទី ១៖ បង្កើតគណនីនៅលើ Firebase Auth ─────────────────────────────
       final credential = await _auth.createUserWithEmailAndPassword(
         email: email.trim(),
         password: password,
@@ -159,29 +237,24 @@ class AuthProvider extends ChangeNotifier {
       _uploadStatus = 'កំពុងរៀបចំទិន្នន័យរូបភាព...';
       notifyListeners();
 
-      // ── ជំហានទី ២៖ បំប្លែងរូបថតខាងមុខទៅជា Base64 String ────────────────────────
       String? frontImageBase64;
       if (idCardFrontFile != null) {
         _uploadStatus = 'កំពុងដំណើរការរូបថតខាងមុខ...';
         _uploadProgress = 0.45;
         notifyListeners();
-
         final Uint8List bytes = await idCardFrontFile.readAsBytes();
-        frontImageBase64 = base64Encode(bytes); // បំប្លែងរូបទៅជាអក្សរ
+        frontImageBase64 = base64Encode(bytes);
       }
 
-      // ── ជំហានទី ៣៖ បំប្លែងរូបថតខាងក្រោយទៅជា Base64 String ───────────────────────
       String? backImageBase64;
       if (idCardBackFile != null) {
         _uploadStatus = 'កំពុងដំណើរការរូបថតខាងក្រោយ...';
         _uploadProgress = 0.65;
         notifyListeners();
-
         final Uint8List bytes = await idCardBackFile.readAsBytes();
-        backImageBase64 = base64Encode(bytes); // បំប្លែងរូបទៅជាអក្សរ
+        backImageBase64 = base64Encode(bytes);
       }
 
-      // ── ជំហានទី ៤៖ រក្សាទុកទិន្នន័យទាំងអស់ចូល Cloud Firestore ───────────────────
       _uploadStatus = 'កំពុងរក្សាទុកព័ត៌មាន...';
       _uploadProgress = 0.85;
       notifyListeners();
@@ -194,37 +267,34 @@ class AuthProvider extends ChangeNotifier {
         role: effectiveRole,
         address: address,
         serviceType: effectiveRole == UserRole.serviceProvider ? serviceType : null,
-        idCard: idCard, // អាចរក្សាទុកតម្លៃ fallback បាន
+        idCard: idCard,
         isActive: true,
         createdAt: DateTime.now(),
       );
 
       final userMap = newUser.toMap();
-      
-      // 🟢 បញ្ចូលខ្សែអក្សរ Base64 នៃរូបភាពទៅក្នុង Field ផ្ទាល់តែម្តង
       if (frontImageBase64 != null) userMap['idCardFrontUrl'] = frontImageBase64;
       if (backImageBase64 != null) userMap['idCardBackUrl'] = backImageBase64;
-      
-      // កំណត់ស្ថានភាពរង់ចាំការផ្ទៀងផ្ទាត់ (សម្រាប់តែអ្នកផ្តល់សេវាត្រាក់ទ័រ)
       if (effectiveRole == UserRole.serviceProvider) userMap['idVerified'] = false;
 
-      // រុញទិន្នន័យទាំងស្រុងទៅ Firestore (លែងគាំង លែងជាប់ Rules ញ៉ាំញ៉ៅ)
       await _db.collection('users').doc(uid).set(userMap);
 
-      // ── បញ្ចប់ការចុះឈ្មោះដោយជោគជ័យ ─────────────────────────────────────────
       _currentUser = newUser;
+
+      // Explicitly save login session for Web/iOS persistence
+      await _saveLoginSession(newUser);
+
       _uploadProgress = 1.0;
       _uploadStatus = 'ចុះឈ្មោះជោគជ័យ!';
       _isLoading = false;
       notifyListeners();
 
-      // រង់ចាំបង្ហាញផ្ទាំង ១០០% បន្តិចសិន រួចសម្អាតផ្ទាំង Loading
       await Future.delayed(const Duration(milliseconds: 500));
       _uploadProgress = 0.0;
       _uploadStatus = '';
       notifyListeners();
 
-      return null; // បញ្ជាក់ថាជោគជ័យ (គ្មាន Error)
+      return null;
 
     } on FirebaseAuthException catch (e) {
       _resetLoadingState();
@@ -246,6 +316,7 @@ class AuthProvider extends ChangeNotifier {
       await _auth.signOut();
     } catch (_) {}
     _currentUser = null;
+    await clearCache();
     notifyListeners();
   }
 

@@ -320,7 +320,7 @@ class _ProviderMapScreenState extends State<ProviderMapScreen> {
               ),
             ),
           Positioned(
-            bottom: 16,
+            bottom: MediaQuery.of(context).padding.bottom + 16,
             left: 16,
             child: Card(
               child: Padding(
@@ -445,7 +445,7 @@ class _RequestSheetState extends State<_RequestSheet> {
     }
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+      padding: EdgeInsets.fromLTRB(20, 12, 20, MediaQuery.of(context).padding.bottom + 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
