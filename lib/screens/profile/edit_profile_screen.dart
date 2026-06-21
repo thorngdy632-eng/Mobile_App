@@ -9,6 +9,7 @@ import '../../providers/auth_provider.dart';
 import '../../models/user_model.dart';
 import '../../theme/app_theme.dart';
 import '../../theme/app_colors.dart';
+import '../../models/service_request.dart';
 
 class EditProfileScreen extends StatefulWidget {
   const EditProfileScreen({super.key});
@@ -459,7 +460,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   const Divider(height: 24, color: Color(0xFFF0F0F0)),
                   _buildReadOnly(
                       label: 'ប្រភេទសេវា',
-                      value: user!.serviceType!,
+                      value: ServiceTypes.labelOf(user!.serviceType!),
                       icon: Icons.work_outline),
                 ],
               ]),
