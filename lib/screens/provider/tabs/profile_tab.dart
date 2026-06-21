@@ -13,6 +13,19 @@ import '../../profile/edit_profile_screen.dart';
 import '../../chat/chat_screen.dart';
 import '../../auth/auth_wrapper.dart';
 
+class _ImgCfg {
+  final String imagePath;
+  const _ImgCfg(this.imagePath);
+}
+
+const Map<String, _ImgCfg> _serviceImgCfgs = {
+  'plowing':     _ImgCfg('assets/images/1.png'),
+  'harvesting':  _ImgCfg('assets/images/2.png'),
+  'drone_spray': _ImgCfg('assets/images/5.png'),
+  'transport':   _ImgCfg('assets/images/3.png'),
+  'irrigation':  _ImgCfg('assets/images/4.png'),
+};
+
 /// Profile tab for the Service Provider role.
 ///
 /// Reads live from [AuthProvider.currentUser] (Firestore-backed) so name,
@@ -39,129 +52,238 @@ class ProviderProfileTab extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FA),
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: const Text('គណនី',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF2D3142))),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: const Color(0xFFEEEEEE)),
-        ),
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(children: [
-          const SizedBox(height: 8),
-          CircleAvatar(
-            radius: 48,
-            backgroundColor: AppTheme.providerOrange.withOpacity(0.15),
-            backgroundImage: avatar,
-            child: avatar == null
-                ? Text(
-                    user?.fullName.isNotEmpty == true ? user!.fullName[0].toUpperCase() : '🚜',
-                    style: TextStyle(
-                        fontSize: user?.fullName.isNotEmpty == true ? 34 : 44,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.providerOrange),
-                  )
-                : null,
-          ),
-          const SizedBox(height: 14),
-          Text(user?.fullName ?? '',
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: Color(0xFF2D3142))),
-          const SizedBox(height: 6),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 5),
-            decoration: BoxDecoration(
-              color: AppTheme.providerOrange.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: AppTheme.providerOrange.withOpacity(0.3)),
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(
+            child: Column(
+              children: [
+                // ── Cover Image ──
+                Container(
+                  height: 180,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [
+                        AppTheme.providerOrange.withValues(alpha: 0.8),
+                        AppTheme.providerOrange,
+                      ],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                  ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      (() {
+                        if (user?.coverImageUrl != null && user!.coverImageUrl!.isNotEmpty) {
+                          try {
+                            return Image.memory(
+                              base64Decode(user.coverImageUrl!),
+                              fit: BoxFit.cover,
+                            );
+                          } catch (_) {}
+                        }
+                        return const SizedBox.shrink();
+                      })(),
+                      // Gradient overlay
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.25),
+                            ],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                      ),
+                      // Edit cover button
+                      Positioned(
+                        top: MediaQuery.of(context).padding.top + 8,
+                        right: 12,
+                        child: GestureDetector(
+                          onTap: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                          ).then((_) => context.read<AuthProvider>().refreshProfile()),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.camera_alt_rounded,
+                              color: Colors.white, size: 18),
+                          ),
+                        ),
+                      ),
+                      // Centered avatar overlapping cover
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Container(
+                                width: 84,
+                                height: 84,
+                                decoration: BoxDecoration(
+                                  gradient: avatar == null
+                                      ? const LinearGradient(
+                                    colors: [AppTheme.providerOrange, Color(0xFFFFB74D)],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  )
+                                      : null,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: avatar != null
+                                    ? Image(image: avatar, fit: BoxFit.cover)
+                                    : Center(
+                                      child: Text(
+                                        user?.fullName.isNotEmpty == true
+                                            ? user!.fullName[0].toUpperCase()
+                                            : 'tractor',
+                                        style: const TextStyle(
+                                          fontSize: 32, fontWeight: FontWeight.w800,
+                                          color: Colors.white),
+                                      ),
+                                    ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                // ── Name / Role / Service ──
+                Padding(
+                  padding: const EdgeInsets.only(top: 50, bottom: 0, left: 16, right: 16),
+                  child: Column(
+                    children: [
+                      Text(user?.fullName ?? '',
+                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800, color: Color(0xFF2D3142))),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.providerOrange.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(user?.roleDisplayName ?? 'អ្នកផ្តល់សេវា',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppTheme.providerOrange)),
+                      ),
+                      if (serviceInfo != null) ...[
+                        const SizedBox(height: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: (serviceInfo['color'] as Color).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(4),
+                              child: Image.asset(
+                                _serviceImgCfgs[user?.serviceType]?.imagePath ?? 'assets/images/app_icon.png',
+                                width: 16, height: 16, fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Icon(serviceInfo['icon'] as IconData, size: 14, color: serviceInfo['color'] as Color),
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(serviceInfo['label'] as String,
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: serviceInfo['color'] as Color)),
+                          ]),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
             ),
-            child: Text(user?.roleDisplayName ?? 'អ្នកផ្តល់សេវា',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppTheme.providerOrange)),
           ),
 
-          if (serviceInfo != null) ...[
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
-              decoration: BoxDecoration(
-                color: (serviceInfo['color'] as Color).withOpacity(0.1),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(serviceInfo['icon'] as IconData, size: 14, color: serviceInfo['color'] as Color),
-                const SizedBox(width: 6),
-                Text(serviceInfo['label'] as String,
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: serviceInfo['color'] as Color)),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 28, 16, 0),
+              child: Column(children: [
+                _ProfileInfoCard(children: [
+                  _InfoRow(icon: Icons.email_outlined, label: 'អ៊ីមែល', value: user?.email ?? '-'),
+                  _InfoRow(icon: Icons.phone_outlined, label: 'ទូរស័ព្ទ', value: user?.phoneNumber ?? '-'),
+                  if (user?.address != null && user!.address!.isNotEmpty)
+                    _InfoRow(icon: Icons.location_on_outlined, label: 'អាសយដ្ឋាន', value: user.address!),
+                ]),
+
+                const SizedBox(height: 16),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: ElevatedButton.icon(
+                    icon: const Icon(Icons.edit_outlined, color: Colors.white),
+                    label: const Text('កែប្រែព័ត៌មាន',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.providerOrange,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      elevation: 0,
+                    ),
+                    onPressed: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const EditProfileScreen()))
+                        .then((_) => context.read<AuthProvider>().refreshProfile()),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.support_agent_rounded, color: Color(0xFFD32F2F)),
+                    label: const Text('ទាក់ទងអ្នកគ្រប់គ្រង',
+                        style: TextStyle(color: Color(0xFFD32F2F), fontWeight: FontWeight.w700)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: Color(0xFFD32F2F)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: () => _contactAdmin(context, user),
+                  ),
+                ),
+                const SizedBox(height: 12),
+
+                SizedBox(
+                  width: double.infinity,
+                  height: 50,
+                  child: OutlinedButton.icon(
+                    icon: const Icon(Icons.logout_rounded, color: AppTheme.errorRed),
+                    label: const Text('ចាកចេញ', style: TextStyle(color: AppTheme.errorRed, fontWeight: FontWeight.w700)),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(color: AppTheme.errorRed),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                    ),
+                    onPressed: () => _confirmLogout(context, auth),
+                  ),
+                ),
+                const SizedBox(height: 24),
               ]),
             ),
-          ],
-
-          const SizedBox(height: 28),
-
-          _ProfileInfoCard(children: [
-            _InfoRow(icon: Icons.email_outlined, label: 'អ៊ីមែល', value: user?.email ?? '-'),
-            _InfoRow(icon: Icons.phone_outlined, label: 'ទូរស័ព្ទ', value: user?.phoneNumber ?? '-'),
-            if (user?.address != null && user!.address!.isNotEmpty)
-              _InfoRow(icon: Icons.location_on_outlined, label: 'អាសយដ្ឋាន', value: user.address!),
-          ]),
-
-          const SizedBox(height: 16),
-
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton.icon(
-              icon: const Icon(Icons.edit_outlined, color: Colors.white),
-              label: const Text('កែប្រែព័ត៌មាន',
-                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppTheme.providerOrange,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                elevation: 0,
-              ),
-              onPressed: () => Navigator.push(context,
-                      MaterialPageRoute(builder: (_) => const EditProfileScreen()))
-                  .then((_) => context.read<AuthProvider>().refreshProfile()),
-            ),
           ),
-          const SizedBox(height: 12),
-
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.support_agent_rounded, color: Color(0xFFD32F2F)),
-              label: const Text('ទាក់ទងអ្នកគ្រប់គ្រង',
-                  style: TextStyle(color: Color(0xFFD32F2F), fontWeight: FontWeight.w700)),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: Color(0xFFD32F2F)),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              onPressed: () => _contactAdmin(context, user),
-            ),
-          ),
-          const SizedBox(height: 12),
-
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: OutlinedButton.icon(
-              icon: const Icon(Icons.logout_rounded, color: AppTheme.errorRed),
-              label: const Text('ចាកចេញ', style: TextStyle(color: AppTheme.errorRed, fontWeight: FontWeight.w700)),
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppTheme.errorRed),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-              ),
-              onPressed: () => _confirmLogout(context, auth),
-            ),
-          ),
-          const SizedBox(height: 24),
-        ]),
+        ],
       ),
     );
   }

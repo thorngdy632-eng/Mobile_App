@@ -1582,58 +1582,156 @@ class _SettingsTab extends StatelessWidget {
       physics: const BouncingScrollPhysics(),
       slivers: [
         SliverToBoxAdapter(
-          child: Container(
-            color: _kNavyMid,
-            padding: EdgeInsets.fromLTRB(
-              16, MediaQuery.of(context).padding.top + 12, 16, 20),
-            child: Row(
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    width: 52, height: 52,
-                    decoration: BoxDecoration(
-                      gradient: user?.profileImageUrl != null &&
-                              user!.profileImageUrl!.isNotEmpty
-                          ? null
-                          : const LinearGradient(
-                        colors: [_kAccentBlue, _kAccentCyan],
-                        begin: Alignment.topLeft, end: Alignment.bottomRight),
-                      borderRadius: BorderRadius.circular(16)),
-                    child: user?.profileImageUrl != null &&
-                            user!.profileImageUrl!.isNotEmpty
-                        ? Image.memory(
-                            base64Decode(user.profileImageUrl!),
-                            fit: BoxFit.cover,
-                          )
-                        : Center(
-                            child: Text(
-                              user?.fullName?.isNotEmpty == true
-                                  ? user!.fullName[0].toUpperCase() : 'A',
-                              style: const TextStyle(
-                                color: Colors.white, fontSize: 22,
-                                fontWeight: FontWeight.w800)),
-                          ),
+          child: Column(
+            children: [
+              // ── Cover Image ──
+              Container(
+                height: 180,
+                width: double.infinity,
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [
+                      _kAccentBlue.withValues(alpha: 0.8),
+                      _kAccentBlue,
+                    ],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
                   ),
                 ),
-                const SizedBox(width: 14),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    (() {
+                      if (user?.coverImageUrl != null && user!.coverImageUrl!.isNotEmpty) {
+                        try {
+                          return Image.memory(
+                            base64Decode(user.coverImageUrl!),
+                            fit: BoxFit.cover,
+                          );
+                        } catch (_) {}
+                      }
+                      return const SizedBox.shrink();
+                    })(),
+                    // Gradient overlay for readability
+                    DecoratedBox(
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [
+                            Colors.transparent,
+                            Colors.black.withValues(alpha: 0.3),
+                          ],
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                        ),
+                      ),
+                    ),
+                    // Edit cover button
+                    Positioned(
+                      top: MediaQuery.of(context).padding.top + 8,
+                      right: 12,
+                      child: GestureDetector(
+                        onTap: () => Navigator.push(context,
+                          MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                        ).then((_) {
+                          if (context.mounted) {
+                            context.read<AuthProvider>().refreshProfile();
+                          }
+                        }),
+                        child: Container(
+                          padding: const EdgeInsets.all(6),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.35),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.camera_alt_rounded,
+                            color: Colors.white, size: 18),
+                        ),
+                      ),
+                    ),
+                    // Centered avatar overlapping cover
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Center(
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.15),
+                                blurRadius: 12,
+                                offset: const Offset(0, 4),
+                              ),
+                            ],
+                          ),
+                          child: ClipOval(
+                            child: Container(
+                              width: 84,
+                              height: 84,
+                              decoration: BoxDecoration(
+                                gradient: user?.profileImageUrl != null &&
+                                        user!.profileImageUrl!.isNotEmpty
+                                    ? null
+                                    : const LinearGradient(
+                                  colors: [_kAccentBlue, _kAccentCyan],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                ),
+                                shape: BoxShape.circle,
+                              ),
+                              child: user?.profileImageUrl != null &&
+                                      user!.profileImageUrl!.isNotEmpty
+                                  ? Image.memory(
+                                      base64Decode(user.profileImageUrl!),
+                                      fit: BoxFit.cover,
+                                    )
+                                  : Center(
+                                      child: Text(
+                                        user?.fullName?.isNotEmpty == true
+                                            ? user!.fullName[0].toUpperCase() : 'A',
+                                        style: const TextStyle(
+                                          color: Colors.white, fontSize: 32,
+                                          fontWeight: FontWeight.w800),
+                                      ),
+                                    ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              // ── Name / Role / Email ──
+              Padding(
+                padding: const EdgeInsets.only(top: 50, bottom: 4, left: 16, right: 16),
+                child: Column(
                   children: [
                     Text(user?.fullName ?? 'Administrator',
                       style: const TextStyle(
-                        fontSize: 17, fontWeight: FontWeight.w800,
+                        fontSize: 20, fontWeight: FontWeight.w800,
                         color: _kTextPrimary)),
-                    const SizedBox(height: 2),
-                    Text(user?.roleDisplayName ?? 'Administrator',
-                      style: const TextStyle(fontSize: 12, color: _kAccentBlue)),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: _kAccentBlue.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Text(user?.roleDisplayName ?? 'Administrator',
+                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _kAccentBlue)),
+                    ),
+                    const SizedBox(height: 4),
                     Text(user?.email ?? '',
-                      style: const TextStyle(
-                        fontSize: 11, color: _kTextSecondary)),
+                      style: const TextStyle(fontSize: 12, color: _kTextSecondary)),
                   ],
                 ),
-              ],
-            ),
+              ),
+              const SizedBox(height: 12),
+            ],
           ),
         ),
 
@@ -1710,7 +1808,7 @@ class _SettingsTab extends StatelessWidget {
                   onTap: () => _showInfoDialog(context,
                     icon: Icons.info_rounded, color: _kTextSecondary,
                     title: 'អំពីកម្មវិធី',
-                    message: 'តោះជួល (Dorne) — ប្រព័ន្ធភ្ជាប់កសិករ និងអ្នកផ្តល់សេវាកសិកម្ម។\n\nកំណែ៖ 1.0.0\nបង្កើតឡើងជាមួយ Flutter & Firebase.'),
+                    message: 'តស់ជួល (Dorne) — ប្រព័ន្ធភ្ជាប់កសិករ និងអ្នកផ្តល់សេវាកសិកម្ម។\n\nកំណែ៖ 1.0.0\nបង្កើតឡើងជាមួយ Flutter & Firebase.'),
                 ),
               ]),
 

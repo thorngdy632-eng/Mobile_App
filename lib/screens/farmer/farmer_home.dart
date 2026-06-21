@@ -162,6 +162,12 @@ class _FarmerDrawer extends StatelessWidget {
       } catch (_) {}
     }
 
+    ImageProvider? drawerBg;
+    if (user?.coverImageUrl != null && user!.coverImageUrl!.isNotEmpty) {
+      try { drawerBg = MemoryImage(base64Decode(user.coverImageUrl!)); } catch (_) {}
+    }
+    drawerBg ??= const AssetImage('assets/images/background_home_screen.jfif');
+
     return Drawer(
       backgroundColor: _kCard,
       child: Column(
@@ -171,11 +177,16 @@ class _FarmerDrawer extends StatelessWidget {
             width: double.infinity,
             padding: EdgeInsets.fromLTRB(
                 20, MediaQuery.of(context).padding.top + 20, 20, 24),
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
                 colors: [_kGreenDark, _kGreen, _kGreenLight],
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
+              ),
+              image: DecorationImage(
+                image: drawerBg,
+                fit: BoxFit.cover,
+                colorFilter: const ColorFilter.mode(Colors.black38, BlendMode.darken),
               ),
             ),
             child: Column(
@@ -213,7 +224,7 @@ class _FarmerDrawer extends StatelessWidget {
                         color: Colors.white.withOpacity(0.22),
                         borderRadius: BorderRadius.circular(20),
                       ),
-                      child: const Text('🌾 កសិករ',
+                      child: const Text('កសិករ',
                           style: TextStyle(
                               color: Colors.white,
                               fontSize: 11,
@@ -588,6 +599,12 @@ class _HomeTab extends StatelessWidget {
         ),
         SliverToBoxAdapter(child: _ServiceTilesGrid()),
 
+        // ── My stats overview ──
+        SliverToBoxAdapter(child: _StatsOverview(user: user)),
+
+        // ── Recent activity ──
+        SliverToBoxAdapter(child: _RecentActivity(user: user)),
+
         // ── Promo banner ──
         SliverToBoxAdapter(
           child: _SectionHeader(
@@ -649,11 +666,16 @@ class _HeroHeaderDelegate extends SliverPersistentHeaderDelegate {
     }
 
     return Container(
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
           colors: [Color(0xFF1B5E20), Color(0xFF2E7D32), Color(0xFF388E3C)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
+        ),
+        image: const DecorationImage(
+          image: AssetImage('assets/images/background_home_screen.jfif'),
+          fit: BoxFit.cover,
+          colorFilter: ColorFilter.mode(Colors.black38, BlendMode.darken),
         ),
       ),
       padding: EdgeInsets.fromLTRB(20, top + 12, 20, 16),
@@ -665,8 +687,7 @@ class _HeroHeaderDelegate extends SliverPersistentHeaderDelegate {
               GestureDetector(
                 onTap: onMenuTap,
                 child: Container(
-                  width: 42,
-                  height: 42,
+                  width: 42, height: 42,
                   decoration: BoxDecoration(
                     color: Colors.white.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(12),
@@ -679,8 +700,7 @@ class _HeroHeaderDelegate extends SliverPersistentHeaderDelegate {
               GestureDetector(
                 onTap: onAvatarTap,
                 child: Container(
-                  width: 42,
-                  height: 42,
+                  width: 42, height: 42,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
@@ -737,8 +757,7 @@ class _HeroHeaderDelegate extends SliverPersistentHeaderDelegate {
                   clipBehavior: Clip.none,
                   children: [
                     Container(
-                      width: 42,
-                      height: 42,
+                      width: 42, height: 42,
                       decoration: BoxDecoration(
                         color: Colors.white.withOpacity(0.15),
                         borderRadius: BorderRadius.circular(12),
@@ -747,11 +766,9 @@ class _HeroHeaderDelegate extends SliverPersistentHeaderDelegate {
                           color: Colors.white, size: 22),
                     ),
                     Positioned(
-                      right: 8,
-                      top: 8,
+                      right: 8, top: 8,
                       child: Container(
-                        width: 9,
-                        height: 9,
+                        width: 9, height: 9,
                         decoration: const BoxDecoration(
                           color: Color(0xFFEF5350),
                           shape: BoxShape.circle,
@@ -768,7 +785,7 @@ class _HeroHeaderDelegate extends SliverPersistentHeaderDelegate {
             Opacity(
               opacity: (1 - progress * 1.5).clamp(0.0, 1.0),
               child: const Text(
-                'សហគមន៍កសិករខ្មែរ  តោះជួល!',
+                'សហគមន៍កសិករខ្មែរ  តស់ជួល!',
                 style: TextStyle(
                     color: Colors.white,
                     fontSize: 24,
@@ -1153,6 +1170,247 @@ class _ServiceTile extends StatelessWidget {
   }
 }
 
+// ─── Stats overview (dynamic counts from Firestore) ──────────────────────────
+
+class _StatsOverview extends StatelessWidget {
+  final dynamic user;
+  const _StatsOverview({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppProvider>();
+    final myUid = user?.uid ?? '';
+    final myReqs = app.serviceRequestsForFarmer(myUid);
+    final total = myReqs.length;
+    final pending = myReqs.where((r) => r.status == 'pending').length;
+    final accepted = myReqs.where((r) => r.status == 'accepted').length;
+    final completed = myReqs.where((r) => r.status == 'completed').length;
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      child: Column(
+        children: [
+          _SectionHeader(
+            title: 'ស្ថិតិរបស់ខ្ញុំ',
+            action: 'ទាំងអស់',
+            onAction: () => Navigator.push(context,
+                MaterialPageRoute(builder: (_) => const MyServiceRequestsScreen())),
+          ),
+          Row(
+            children: [
+              _StatCard(
+                label: 'សរុប',
+                count: total,
+                color: const Color(0xFF424242),
+                bg: const Color(0xFFF5F5F5),
+                icon: Icons.receipt_long_rounded,
+              ),
+              const SizedBox(width: 8),
+              _StatCard(
+                label: 'រង់ចាំ',
+                count: pending,
+                color: const Color(0xFFF9A825),
+                bg: const Color(0xFFFFF8E1),
+                icon: Icons.hourglass_empty_rounded,
+              ),
+              const SizedBox(width: 8),
+              _StatCard(
+                label: 'ទទួល',
+                count: accepted,
+                color: const Color(0xFF2E7D32),
+                bg: const Color(0xFFE8F5E9),
+                icon: Icons.check_circle_outline_rounded,
+              ),
+              const SizedBox(width: 8),
+              _StatCard(
+                label: 'បញ្ចប់',
+                count: completed,
+                color: const Color(0xFF1565C0),
+                bg: const Color(0xFFE3F2FD),
+                icon: Icons.task_alt_rounded,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCard extends StatelessWidget {
+  final String label;
+  final int count;
+  final Color color;
+  final Color bg;
+  final IconData icon;
+  const _StatCard({
+    required this.label,
+    required this.count,
+    required this.color,
+    required this.bg,
+    required this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+        decoration: BoxDecoration(
+          color: bg,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: color, size: 20),
+            const SizedBox(height: 6),
+            Text(
+              '$count',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w800,
+                color: color,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: color.withOpacity(0.7),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Recent activity (latest requests with status) ───────────────────────────
+
+class _RecentActivity extends StatelessWidget {
+  final dynamic user;
+  const _RecentActivity({required this.user});
+
+  @override
+  Widget build(BuildContext context) {
+    final app = context.watch<AppProvider>();
+    final myUid = user?.uid ?? '';
+    final reqs = app.serviceRequestsForFarmer(myUid)
+      ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    final recent = reqs.take(3).toList();
+
+    if (recent.isEmpty) return const SizedBox.shrink();
+
+    return Column(
+      children: [
+        _SectionHeader(
+          title: 'សកម្មភាពចុងក្រោយ',
+          action: 'ទាំងអស់',
+          onAction: () => Navigator.push(context,
+              MaterialPageRoute(builder: (_) => const MyServiceRequestsScreen())),
+        ),
+        ...recent.map((r) => _ActivityTile(r: r)),
+      ],
+    );
+  }
+}
+
+class _ActivityTile extends StatelessWidget {
+  final ServiceRequest r;
+  const _ActivityTile({required this.r});
+
+  @override
+  Widget build(BuildContext context) {
+    final info = ServiceTypes.infoOf(r.serviceType);
+    final Color color = info['color'] as Color;
+    final cfg = _serviceImgCfgs[r.serviceType];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _kCard,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [
+          BoxShadow(
+              color: Color(0x0A000000),
+              blurRadius: 6,
+              offset: Offset(0, 2)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: cfg?.bg ?? color.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Center(
+              child: cfg != null
+                  ? Image.asset(cfg.imagePath, width: 28, height: 28, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) =>
+                          Icon(info['icon'] as IconData, color: color, size: 20))
+                  : Icon(info['icon'] as IconData, color: color, size: 20),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(info['label'] as String,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w700,
+                        color: color)),
+                const SizedBox(height: 2),
+                Text(
+                  r.currentAddress,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      fontSize: 11, color: Color(0xFF9E9E9E)),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: r.statusColor.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(r.statusLabel,
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w700,
+                        color: r.statusColor)),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                '${r.offerPrice.toStringAsFixed(0)} រៀល',
+                style: const TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Color(0xFF424242)),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ─── Dynamic promo banner (reads from Firestore) ───────────────────────────────
 
 class _DynamicPromoBanner extends StatefulWidget {
@@ -1379,7 +1637,16 @@ class _MyRequestsStrip extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Row(children: [
-                        Icon(info['icon'] as IconData, color: color, size: 16),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(4),
+                          child: Image.asset(
+                            _serviceImgCfgs[r.serviceType]?.imagePath ?? 'assets/images/app_icon.png',
+                            width: 16,
+                            height: 16,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Icon(info['icon'] as IconData, color: color, size: 16),
+                          ),
+                        ),
                         const SizedBox(width: 6),
                         Text(info['label'] as String,
                             style: TextStyle(
@@ -1743,67 +2010,155 @@ class _ProfileTab extends StatelessWidget {
       backgroundColor: _kSurface,
       body: CustomScrollView(
         slivers: [
-          // Header
           SliverToBoxAdapter(
-            child: Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [_kGreenDark, _kGreen],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              padding: EdgeInsets.fromLTRB(
-                  24, MediaQuery.of(context).padding.top + 20, 24, 32),
-              child: Column(
-                children: [
-                  Container(
-                    width: 90,
-                    height: 90,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                          color: Colors.white.withOpacity(0.6), width: 2.5),
-                      image: avatar != null
-                          ? DecorationImage(
-                              image: avatar, fit: BoxFit.cover)
-                          : null,
-                      color: Colors.white.withOpacity(0.15),
+            child: Column(
+              children: [
+                // ── Cover Image ──
+                Container(
+                  height: 200,
+                  width: double.infinity,
+                  decoration: const BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [_kGreenDark, _kGreen],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-                    child: avatar == null
-                        ? Center(
-                            child: Text(
-                              user?.fullName != null && user!.fullName.isNotEmpty
-                                  ? user.fullName[0].toUpperCase()
-                                  : '👨‍🌾',
-                              style: const TextStyle(
-                                  fontSize: 34, color: Colors.white),
+                  ),
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      (() {
+                        if (user?.coverImageUrl != null && user!.coverImageUrl!.isNotEmpty) {
+                          try {
+                            return Image.memory(
+                              base64Decode(user.coverImageUrl!),
+                              fit: BoxFit.cover,
+                            );
+                          } catch (_) {}
+                        }
+                        return const SizedBox.shrink();
+                      })(),
+                      // Gradient overlay
+                      DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.3),
+                            ],
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                          ),
+                        ),
+                      ),
+                      // Edit cover button
+                      Positioned(
+                        top: MediaQuery.of(context).padding.top + 8,
+                        right: 12,
+                        child: GestureDetector(
+                          onTap: () => Navigator.push(context,
+                            MaterialPageRoute(builder: (_) => const EditProfileScreen()),
+                          ).then((_) => context.read<AuthProvider>().refreshProfile()),
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              shape: BoxShape.circle,
                             ),
-                          )
-                        : null,
+                            child: const Icon(Icons.camera_alt_rounded,
+                              color: Colors.white, size: 18),
+                          ),
+                        ),
+                      ),
+                      // Centered avatar overlapping cover
+                      Positioned(
+                        bottom: 0,
+                        left: 0,
+                        right: 0,
+                        child: Center(
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.15),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 4),
+                                ),
+                              ],
+                            ),
+                            child: ClipOval(
+                              child: Container(
+                                width: 84,
+                                height: 84,
+                                decoration: BoxDecoration(
+                                  gradient: avatar == null
+                                      ? const LinearGradient(
+                                    colors: [_kGreenDark, _kGreen],
+                                    begin: Alignment.topLeft,
+                                    end: Alignment.bottomRight,
+                                  )
+                                      : null,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: avatar != null
+                                    ? Image(image: avatar, fit: BoxFit.cover)
+                                    : const Center(
+                                      child: Text(
+                                        'K',
+                                        style: TextStyle(
+                                          fontSize: 32, fontWeight: FontWeight.w800,
+                                          color: Colors.white),
+                                      ),
+                                    ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(height: 12),
-                  Text(user?.fullName ?? '',
-                      style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 19,
-                          fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 14, vertical: 5),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.18),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text('🌾 កសិករ',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600)),
+                ),
+                // ── Name / Role / Address ──
+                Padding(
+                  padding: const EdgeInsets.only(top: 50, bottom: 0, left: 16, right: 16),
+                  child: Column(
+                    children: [
+                      Text(user?.fullName ?? '',
+                          style: const TextStyle(
+                            color: Color(0xFF2D3142),
+                            fontSize: 20, fontWeight: FontWeight.w800)),
+                      const SizedBox(height: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: _kGreen.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Text('កសិករ',
+                            style: TextStyle(
+                              color: _kGreen,
+                              fontSize: 12, fontWeight: FontWeight.w600)),
+                      ),
+                      if (user?.address != null && user!.address!.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(Icons.location_on, color: Color(0xFF757575), size: 14),
+                            const SizedBox(width: 4),
+                            Text(user!.address!,
+                              style: const TextStyle(color: Color(0xFF757575), fontSize: 12)),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
-                ],
-              ),
+                ),
+                const SizedBox(height: 16),
+              ],
             ),
           ),
 

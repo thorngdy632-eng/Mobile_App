@@ -348,7 +348,7 @@ class _RegisterScreenState extends State<RegisterScreen>
             onPressed: _onBack,
           ),
           const Text(
-            'តោះជួល!',
+            'តស់ជួល!',
             style: TextStyle(
               fontFamily: 'KhmerOSBattambang',
               fontSize: 18,
@@ -519,7 +519,11 @@ class _RegisterScreenState extends State<RegisterScreen>
             children: [
               _buildRoleCard(
                 role: UserRole.farmer,
-                emoji: '👨‍🌾',
+                icon: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset('assets/images/farmers.png', width: 78, height: 78, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.agriculture, size: 64, color: Color(0xFF2E7D32))),
+                ),
                 title: 'កសិករ',
                 description: 'ស្វែងរក និងទំនាក់ទំនងអ្នកផ្តល់សេវា',
                 color: const Color(0xFF2E7D32),
@@ -527,7 +531,11 @@ class _RegisterScreenState extends State<RegisterScreen>
               const SizedBox(height: 10),
               _buildRoleCard(
                 role: UserRole.serviceProvider,
-                emoji: '🚜',
+                icon: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.asset('assets/images/providers.png', width: 78, height: 78, fit: BoxFit.cover,
+                      errorBuilder: (_, __, ___) => const Icon(Icons.agriculture, size: 64, color: Color(0xFFE65100))),
+                ),
                 title: 'អ្នកផ្តល់សេវា',
                 description: 'ផ្សព្វផ្សាយសេវា និងទទួលការជួល',
                 color: const Color(0xFFE65100),
@@ -711,7 +719,7 @@ class _RegisterScreenState extends State<RegisterScreen>
 
   Widget _buildRoleCard({
     required UserRole role,
-    required String emoji,
+    required Widget icon,
     required String title,
     required String description,
     required Color color,
@@ -746,7 +754,7 @@ class _RegisterScreenState extends State<RegisterScreen>
         ),
         child: Row(
           children: [
-            Text(emoji, style: const TextStyle(fontSize: 28)),
+            SizedBox(width: 78, height: 78, child: icon),
             const SizedBox(width: 14),
             Expanded(
               child: Column(

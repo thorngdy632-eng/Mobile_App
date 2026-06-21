@@ -536,7 +536,16 @@ class _FarmerMapScreenState extends State<FarmerMapScreen> {
             const SizedBox(height: 12),
             Row(
               children: [
-                Icon(info['icon'] as IconData, color: info['color'] as Color),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.asset(
+                    _serviceImgCfgs[r.serviceType]?.imagePath ?? 'assets/images/app_icon.png',
+                    width: 28,
+                    height: 28,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Icon(info['icon'] as IconData, color: info['color'] as Color, size: 24),
+                  ),
+                ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(

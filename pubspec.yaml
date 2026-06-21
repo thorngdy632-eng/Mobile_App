@@ -1,5 +1,5 @@
 name: taohjoul
-description: "តោះជួល! - Agricultural Equipment Rental App"
+description: "តស់ជួល! - Agricultural Equipment Rental App"
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -54,7 +54,7 @@ dependency_overrides:
   # This forces your map packages to use the modern math types required by the framework
   vector_math: ^2.4.0
 
-# ⚙️ កំណត់ទីតាំងរូបភាព Icon សម្រាប់កម្មវិធី តោះជួល!
+# ⚙️ កំណត់ទីតាំងរូបភាព Icon សម្រាប់កម្មវិធី តស់ជួល!
 flutter_launcher_icons:
   android: "launcher_icon"
   ios: true

@@ -241,7 +241,7 @@ class _LoginScreenState extends State<LoginScreen>
         ),
         const SizedBox(height: 16),
         const Text(
-          'តោះជួល',
+          'តស់ជួល',
           style: TextStyle(
             fontFamily: 'KhmerOSBattambang',
             fontSize: 34,
@@ -460,29 +460,47 @@ class _LoginScreenState extends State<LoginScreen>
         const SizedBox(height: 10),
         Row(
           children: [
-            _rolePill('👨‍💼', 'អ្នកគ្រប់គ្រង', const Color(0xFF1565C0)),
+            _rolePill(
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset('assets/images/admin.png', width: 78, height: 78, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.admin_panel_settings, size: 64, color: Color(0xFF1565C0))),
+              ),
+              'អ្នកគ្រប់គ្រង', const Color(0xFF1565C0)),
             const SizedBox(width: 8),
-            _rolePill('👨‍🌾', 'កសិករ', const Color(0xFF2E7D32)),
+            _rolePill(
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset('assets/images/farmers.png', width: 78, height: 78, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.agriculture, size: 64, color: Color(0xFF2E7D32))),
+              ),
+              'កសិករ', const Color(0xFF2E7D32)),
             const SizedBox(width: 8),
-            _rolePill('🚜', 'អ្នកផ្តល់សេវា', const Color(0xFFE65100)),
+            _rolePill(
+              ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.asset('assets/images/providers.png', width: 78, height: 78, fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => const Icon(Icons.agriculture, size: 64, color: Color(0xFFE65100))),
+              ),
+              'អ្នកផ្តល់សេវា', const Color(0xFFE65100)),
           ],
         ),
       ],
     );
   }
 
-  Widget _rolePill(String emoji, String label, Color color) => Expanded(
+  Widget _rolePill(Widget icon, String label, Color color) => Expanded(
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
           decoration: BoxDecoration(
             color: color.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(12),
             border: Border.all(color: color.withOpacity(0.3)),
           ),
           child: Column(
             children: [
-              Text(emoji, style: const TextStyle(fontSize: 18)),
-              const SizedBox(height: 4),
+              SizedBox(width: 78, height: 78, child: icon),
+              const SizedBox(height: 6),
               Text(
                 label,
                 textAlign: TextAlign.center,

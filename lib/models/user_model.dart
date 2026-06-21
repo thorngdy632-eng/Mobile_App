@@ -9,6 +9,7 @@ class UserModel {
   final String phoneNumber;
   final UserRole role;
   final String? profileImageUrl;
+  final String? coverImageUrl;
   final double? latitude;
   final double? longitude;
   final String? address;
@@ -24,6 +25,7 @@ class UserModel {
     required this.phoneNumber,
     required this.role,
     this.profileImageUrl,
+    this.coverImageUrl,
     this.latitude,
     this.longitude,
     this.address,
@@ -44,6 +46,7 @@ class UserModel {
         orElse: () => UserRole.farmer,
       ),
       profileImageUrl: map['profileImageUrl'],
+      coverImageUrl: map['coverImageUrl'],
       latitude: (map['latitude'] as num?)?.toDouble(),
       longitude: (map['longitude'] as num?)?.toDouble(),
       address: map['address'],
@@ -61,6 +64,7 @@ class UserModel {
       'phoneNumber': phoneNumber,
       'role': role.name,
       'profileImageUrl': profileImageUrl,
+      'coverImageUrl': coverImageUrl,
       'latitude': latitude,
       'longitude': longitude,
       'address': address,
@@ -77,6 +81,7 @@ class UserModel {
     String? phoneNumber,
     UserRole? role,
     String? profileImageUrl,
+    String? coverImageUrl,
     double? latitude,
     double? longitude,
     String? address,
@@ -91,6 +96,7 @@ class UserModel {
       phoneNumber: phoneNumber ?? this.phoneNumber,
       role: role ?? this.role,
       profileImageUrl: profileImageUrl ?? this.profileImageUrl,
+      coverImageUrl: coverImageUrl ?? this.coverImageUrl,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
       address: address ?? this.address,

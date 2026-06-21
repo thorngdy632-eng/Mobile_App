@@ -461,7 +461,16 @@ class _RequestSheetState extends State<_RequestSheet> {
           const SizedBox(height: 16),
           Row(
             children: [
-              Icon(info['icon'] as IconData, color: accent),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.asset(
+                  _serviceImgCfgs[r.serviceType]?.imagePath ?? 'assets/images/app_icon.png',
+                  width: 28,
+                  height: 28,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => Icon(info['icon'] as IconData, color: accent, size: 24),
+                ),
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(r.farmerName,

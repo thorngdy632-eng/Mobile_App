@@ -1,4 +1,5 @@
 // lib/screens/provider/tabs/provider_dashboard_tab.dart
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -11,6 +12,19 @@ import '../../../theme/app_colors.dart';
 import '../../profile/edit_profile_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../provider_map_screen.dart';
+
+class _ImgCfg {
+  final String imagePath;
+  const _ImgCfg(this.imagePath);
+}
+
+const Map<String, _ImgCfg> _serviceImgCfgs = {
+  'plowing':     _ImgCfg('assets/images/1.png'),
+  'harvesting':  _ImgCfg('assets/images/2.png'),
+  'drone_spray': _ImgCfg('assets/images/5.png'),
+  'transport':   _ImgCfg('assets/images/3.png'),
+  'irrigation':  _ImgCfg('assets/images/4.png'),
+};
 
 /// The main dashboard tab for Service Providers.
 /// Shows:
@@ -134,7 +148,7 @@ class _ProviderDashboardState extends State<ProviderDashboard> {
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
-          child: _SectionHeader(title: 'ការជូនដំណឹងថ្មី 🔔', sub: '${pending.length} ការងាររង់ចាំ'),
+          child: _SectionHeader(title: 'ការជូនដំណឹងថ្មី', sub: '${pending.length} ការងាររង់ចាំ'),
         ),
         ...pending.take(5).map((r) => Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
@@ -275,12 +289,17 @@ class _HeroHeader extends StatelessWidget {
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
           colors: [Color(0xFF1B2A1E), Color(0xFF2D4A30), Color(0xFFE65100)],
           stops: [0.0, 0.6, 1.0],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
+        ),
+        image: const DecorationImage(
+          image: AssetImage('assets/images/background_home_screen.jfif'),
+          fit: BoxFit.cover,
+          colorFilter: ColorFilter.mode(Colors.black38, BlendMode.darken),
         ),
       ),
       padding: EdgeInsets.fromLTRB(16, topPad + 14, 16, 20),
@@ -299,7 +318,14 @@ class _HeroHeader extends StatelessWidget {
               child: CircleAvatar(
                 radius: 22,
                 backgroundColor: AppTheme.providerOrange.withOpacity(0.3),
-                child: const Icon(Icons.person_rounded, color: Colors.white, size: 26),
+                backgroundImage: user?.profileImageUrl != null && user!.profileImageUrl!.isNotEmpty
+                    ? (() {
+                        try { return MemoryImage(base64Decode(user.profileImageUrl!)); } catch (_) { return null; }
+                      })()
+                    : null,
+                child: (user?.profileImageUrl == null || user!.profileImageUrl!.isEmpty)
+                    ? const Icon(Icons.person_rounded, color: Colors.white, size: 26)
+                    : null,
               ),
             ),
           ),
@@ -347,8 +373,18 @@ class _HeroHeader extends StatelessWidget {
                 border: Border.all(color: Colors.white30),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(ServiceTypes.infoOf(user!.serviceType!)['icon'] as IconData,
-                    size: 14, color: Colors.white),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: Image.asset(
+                    _serviceImgCfgs[user!.serviceType]?.imagePath ?? 'assets/images/app_icon.png',
+                    width: 16,
+                    height: 16,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Icon(
+                        ServiceTypes.infoOf(user.serviceType!)['icon'] as IconData,
+                        size: 14, color: Colors.white),
+                  ),
+                ),
                 const SizedBox(width: 6),
                 Text(ServiceTypes.labelOf(user.serviceType!),
                     style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600)),
@@ -449,7 +485,18 @@ class _JobAlertCard extends StatelessWidget {
             Container(
               width: 44, height: 44,
               decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-              child: Center(child: Icon(icon, color: color, size: 22)),
+              child: Center(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(10),
+                  child: Image.asset(
+                    _serviceImgCfgs[request.serviceType]?.imagePath ?? 'assets/images/app_icon.png',
+                    width: 30,
+                    height: 30,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Icon(icon, color: color, size: 22),
+                  ),
+                ),
+              ),
             ),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -459,11 +506,11 @@ class _JobAlertCard extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(color: const Color(0xFFE53935).withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
-                  child: const Text('ថ្មី🔔', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFE53935))),
+                  child: const Text('ថ្មី', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Color(0xFFE53935))),
                 ),
               ]),
               const SizedBox(height: 3),
-              Text('👤 ${request.farmerName}', style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
+              Text(request.farmerName, style: const TextStyle(fontSize: 12, color: AppColors.textMuted)),
             ])),
           ]),
           const SizedBox(height: 12),
@@ -564,7 +611,7 @@ class _ScheduleCard extends StatelessWidget {
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(service, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Color(0xFF2D3142))),
         const SizedBox(height: 2),
-        Text('👤 $farmerName', style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
+        Text(farmerName, style: const TextStyle(fontSize: 11, color: AppColors.textMuted)),
         const SizedBox(height: 4),
         Row(children: [
           const Icon(Icons.location_on_outlined, size: 12, color: AppColors.textMuted),

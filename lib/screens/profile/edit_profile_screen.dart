@@ -24,6 +24,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _addressCtrl;
 
   Uint8List? _imageBytes;
+  Uint8List? _coverBytes;
   bool _saving = false;
   final _picker = ImagePicker();
 
@@ -63,6 +64,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
   }
 
+  Future<void> _pickCoverImage() async {
+    HapticFeedback.selectionClick();
+    final source = await _showSourceSheet();
+    if (source == null) return;
+
+    final picked = await _picker.pickImage(
+      source: source,
+      imageQuality: 80,
+      maxWidth: 1024,
+      maxHeight: 512,
+    );
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    setState(() {
+      _coverBytes = bytes;
+    });
+  }
+
   Future<ImageSource?> _showSourceSheet() async {
     return showModalBottomSheet<ImageSource>(
       context: context,
@@ -92,6 +112,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       if (_imageBytes != null) {
         updates['profileImageUrl'] = base64Encode(_imageBytes!);
       }
+      if (_coverBytes != null) {
+        updates['coverImageUrl'] = base64Encode(_coverBytes!);
+      }
 
       await FirebaseFirestore.instance
           .collection('users')
@@ -106,6 +129,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         profileImageUrl: _imageBytes != null
             ? base64Encode(_imageBytes!)
             : user.profileImageUrl,
+        coverImageUrl: _coverBytes != null
+            ? base64Encode(_coverBytes!)
+            : user.coverImageUrl,
       );
 
       // Re-fetch from Firestore to update provider state properly
@@ -226,6 +252,75 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               const SizedBox(height: 8),
               Text(
                 'ចុចដើម្បីផ្លាស់ប្ដូររូបភាព',
+                style: TextStyle(
+                    fontSize: 12, color: AppColors.textMuted),
+              ),
+
+              const SizedBox(height: 20),
+
+              // ── Cover image picker ──────────────────────────────────
+              Center(
+                child: GestureDetector(
+                  onTap: _pickCoverImage,
+                  child: Stack(
+                    children: [
+                      Container(
+                        width: double.infinity,
+                        height: 120,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(16),
+                          image: _coverBytes != null
+                              ? DecorationImage(
+                                  image: MemoryImage(_coverBytes!),
+                                  fit: BoxFit.cover)
+                              : _existingImage(user?.coverImageUrl) != null
+                                  ? DecorationImage(
+                                      image: _existingImage(user!.coverImageUrl!)!,
+                                      fit: BoxFit.cover)
+                                  : null,
+                          color: _roleColor(user?.role).withOpacity(0.1),
+                        ),
+                        child: (_coverBytes == null &&
+                                (user?.coverImageUrl == null ||
+                                    user!.coverImageUrl!.isEmpty))
+                            ? Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                children: [
+                                  Icon(Icons.panorama_outlined,
+                                      color: _roleColor(user?.role).withOpacity(0.5),
+                                      size: 32),
+                                  const SizedBox(height: 6),
+                                  Text('រូបភាពក្រណាត់គោល',
+                                      style: TextStyle(
+                                          fontSize: 12,
+                                          color: _roleColor(user?.role).withOpacity(0.5))),
+                                ],
+                              )
+                            : null,
+                      ),
+                      Positioned(
+                        bottom: 8,
+                        right: 8,
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: _roleColor(user?.role),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                                color: Colors.white, width: 2),
+                          ),
+                          child: const Icon(Icons.camera_alt,
+                              color: Colors.white, size: 16),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'ចុចដើម្បីផ្លាស់ប្ដូររូបភាពក្រណាត់គោល',
                 style: TextStyle(
                     fontSize: 12, color: AppColors.textMuted),
               ),
