@@ -25,6 +25,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   Uint8List? _imageBytes;
   Uint8List? _coverBytes;
+  bool _coverDeleted = false;
   bool _saving = false;
   final _picker = ImagePicker();
 
@@ -80,6 +81,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     final bytes = await picked.readAsBytes();
     setState(() {
       _coverBytes = bytes;
+      _coverDeleted = false;
+    });
+  }
+
+  void _deleteCover() {
+    HapticFeedback.selectionClick();
+    setState(() {
+      _coverBytes = null;
+      _coverDeleted = true;
     });
   }
 
@@ -114,6 +124,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       }
       if (_coverBytes != null) {
         updates['coverImageUrl'] = base64Encode(_coverBytes!);
+      } else if (_coverDeleted) {
+        updates['coverImageUrl'] = FieldValue.delete();
       }
 
       await FirebaseFirestore.instance
@@ -129,9 +141,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         profileImageUrl: _imageBytes != null
             ? base64Encode(_imageBytes!)
             : user.profileImageUrl,
-        coverImageUrl: _coverBytes != null
-            ? base64Encode(_coverBytes!)
-            : user.coverImageUrl,
+        coverImageUrl: _coverDeleted
+            ? null
+            : _coverBytes != null
+                ? base64Encode(_coverBytes!)
+                : user.coverImageUrl,
       );
 
       // Re-fetch from Firestore to update provider state properly
@@ -261,7 +275,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               // ── Cover image picker ──────────────────────────────────
               Center(
                 child: GestureDetector(
-                  onTap: _pickCoverImage,
+                  onTap: _coverDeleted ? null : _pickCoverImage,
                   child: Stack(
                     children: [
                       Container(
@@ -269,35 +283,55 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         height: 120,
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(16),
+                          gradient: (_coverBytes == null &&
+                                  ((!_coverDeleted &&
+                                      (user?.coverImageUrl == null ||
+                                          user!.coverImageUrl!.isEmpty)) ||
+                                   _coverDeleted))
+                              ? const LinearGradient(
+                                  colors: [Color(0xFF1B5E20), Color(0xFF2E7D32), Color(0xFF388E3C)],
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                )
+                              : null,
                           image: _coverBytes != null
                               ? DecorationImage(
                                   image: MemoryImage(_coverBytes!),
                                   fit: BoxFit.cover)
-                              : _existingImage(user?.coverImageUrl) != null
+                              : (!_coverDeleted &&
+                                      _existingImage(user?.coverImageUrl) != null)
                                   ? DecorationImage(
                                       image: _existingImage(user!.coverImageUrl!)!,
                                       fit: BoxFit.cover)
                                   : null,
-                          color: _roleColor(user?.role).withOpacity(0.1),
+                          color: _coverBytes == null &&
+                                  ((!_coverDeleted &&
+                                      (user?.coverImageUrl == null ||
+                                          user!.coverImageUrl!.isEmpty)) ||
+                                   _coverDeleted)
+                              ? null
+                              : null,
                         ),
-                        child: (_coverBytes == null &&
-                                (user?.coverImageUrl == null ||
-                                    user!.coverImageUrl!.isEmpty))
+                        child: (_coverBytes == null && _coverDeleted) ||
+                                (_coverBytes == null &&
+                                    (user?.coverImageUrl == null ||
+                                        user!.coverImageUrl!.isEmpty))
                             ? Column(
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 children: [
-                                  Icon(Icons.panorama_outlined,
-                                      color: _roleColor(user?.role).withOpacity(0.5),
+                                  const Icon(Icons.panorama_outlined,
+                                      color: Colors.white70,
                                       size: 32),
                                   const SizedBox(height: 6),
-                                  Text('រូបភាពក្រណាត់គោល',
+                                  const Text('រូបភាពក្រណាត់គោល',
                                       style: TextStyle(
                                           fontSize: 12,
-                                          color: _roleColor(user?.role).withOpacity(0.5))),
+                                          color: Colors.white70)),
                                 ],
                               )
                             : null,
                       ),
+                      // Camera button
                       Positioned(
                         bottom: 8,
                         right: 8,
@@ -314,6 +348,30 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                               color: Colors.white, size: 16),
                         ),
                       ),
+                      // Delete button
+                      if (_coverBytes != null ||
+                          (!_coverDeleted &&
+                              user?.coverImageUrl != null &&
+                              user!.coverImageUrl!.isNotEmpty))
+                        Positioned(
+                          top: 8,
+                          right: 8,
+                          child: GestureDetector(
+                            onTap: _deleteCover,
+                            child: Container(
+                              width: 28,
+                              height: 28,
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.5),
+                                shape: BoxShape.circle,
+                                border: Border.all(
+                                    color: Colors.white, width: 1.5),
+                              ),
+                              child: const Icon(Icons.close,
+                                  color: Colors.white, size: 14),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),

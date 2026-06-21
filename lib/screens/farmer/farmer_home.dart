@@ -166,7 +166,6 @@ class _FarmerDrawer extends StatelessWidget {
     if (user?.coverImageUrl != null && user!.coverImageUrl!.isNotEmpty) {
       try { drawerBg = MemoryImage(base64Decode(user.coverImageUrl!)); } catch (_) {}
     }
-    drawerBg ??= const AssetImage('assets/images/background_home_screen.jfif');
 
     return Drawer(
       backgroundColor: _kCard,
@@ -183,11 +182,13 @@ class _FarmerDrawer extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
               ),
-              image: DecorationImage(
-                image: drawerBg,
-                fit: BoxFit.cover,
-                colorFilter: const ColorFilter.mode(Colors.black38, BlendMode.darken),
-              ),
+              image: drawerBg != null
+                  ? DecorationImage(
+                      image: drawerBg,
+                      fit: BoxFit.cover,
+                      colorFilter: const ColorFilter.mode(Colors.black38, BlendMode.darken),
+                    )
+                  : null,
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
