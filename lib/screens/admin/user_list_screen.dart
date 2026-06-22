@@ -75,11 +75,28 @@ class _UserListScreenState extends State<UserListScreen> {
           child: StreamBuilder<QuerySnapshot>(
             stream: FirebaseFirestore.instance
                 .collection('users')
-                .orderBy('createdAt', descending: true)
                 .snapshots(),
             builder: (context, snap) {
               if (snap.connectionState == ConnectionState.waiting) {
                 return const Center(child: CircularProgressIndicator());
+              }
+
+              if (snap.hasError) {
+                return Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.error_outline, color: Colors.red, size: 40),
+                      const SizedBox(height: 12),
+                      Text('មានបញ្ហាក្នុងការផ្ទុកទិន្នន័យ',
+                          style: const TextStyle(fontSize: 14, color: AppColors.textMuted)),
+                      const SizedBox(height: 8),
+                      Text('${snap.error}',
+                          style: const TextStyle(fontSize: 11, color: AppColors.textMuted),
+                          textAlign: TextAlign.center),
+                    ],
+                  ),
+                );
               }
 
               if (!snap.hasData || snap.data!.docs.isEmpty) {
@@ -87,9 +104,19 @@ class _UserListScreenState extends State<UserListScreen> {
               }
 
               var users = snap.data!.docs
-                  .map((d) => UserModel.fromMap(
-                      d.data() as Map<String, dynamic>, d.id))
+                  .map((d) {
+                    try {
+                      return UserModel.fromMap(
+                          d.data() as Map<String, dynamic>, d.id);
+                    } catch (_) {
+                      return null;
+                    }
+                  })
+                  .whereType<UserModel>()
                   .toList();
+
+              // Sort by createdAt client-side (no Firestore index needed)
+              users.sort((a, b) => b.createdAt.compareTo(a.createdAt));
 
               // Apply role filter
               if (_filterRole != null) {
@@ -264,11 +291,8 @@ class _UserTile extends StatelessWidget {
       leading: CircleAvatar(
         radius: 24,
         backgroundColor: _roleColor.withOpacity(0.15),
-        backgroundImage: user.profileImageUrl != null &&
-                user.profileImageUrl!.isNotEmpty
-            ? MemoryImage(base64Decode(user.profileImageUrl!))
-            : null,
-        child: user.profileImageUrl == null || user.profileImageUrl!.isEmpty
+        backgroundImage: _safeProfileImage,
+        child: _safeProfileImage == null
             ? Text(
                 user.fullName.isNotEmpty
                     ? user.fullName[0].toUpperCase()
@@ -370,6 +394,17 @@ class _UserTile extends StatelessWidget {
         return AppTheme.farmerGreen;
       case UserRole.serviceProvider:
         return AppTheme.providerOrange;
+    }
+  }
+
+  ImageProvider? get _safeProfileImage {
+    if (user.profileImageUrl == null || user.profileImageUrl!.isEmpty) {
+      return null;
+    }
+    try {
+      return MemoryImage(base64Decode(user.profileImageUrl!));
+    } catch (_) {
+      return null;
     }
   }
 }

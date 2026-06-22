@@ -121,12 +121,15 @@ class _ChatScreenState extends State<ChatScreen> {
             CircleAvatar(
               radius: 18,
               backgroundColor: Colors.white.withOpacity(0.25),
-              backgroundImage: widget.peerImageBase64 != null &&
-                      widget.peerImageBase64!.isNotEmpty
-                  ? MemoryImage(base64Decode(widget.peerImageBase64!))
-                  : null,
-              child: widget.peerImageBase64 == null ||
-                      widget.peerImageBase64!.isEmpty
+              backgroundImage: (() {
+                final img = widget.peerImageBase64;
+                if (img != null && img.isNotEmpty) {
+                  try { return MemoryImage(base64Decode(img)); } catch (_) {}
+                }
+                return null;
+              })(),
+              child: (widget.peerImageBase64 == null ||
+                      widget.peerImageBase64!.isEmpty)
                   ? Text(
                       widget.peerName.isNotEmpty
                           ? widget.peerName[0].toUpperCase()
@@ -364,9 +367,13 @@ class _MessageBubble extends StatelessWidget {
             CircleAvatar(
               radius: 13,
               backgroundColor: activeColor.withOpacity(0.12),
-              backgroundImage: peerImageBase64 != null && peerImageBase64!.isNotEmpty
-                  ? MemoryImage(base64Decode(peerImageBase64!))
-                  : null,
+              backgroundImage: (() {
+                final img = peerImageBase64;
+                if (img != null && img.isNotEmpty) {
+                  try { return MemoryImage(base64Decode(img)); } catch (_) {}
+                }
+                return null;
+              })(),
               child: peerImageBase64 == null || peerImageBase64!.isEmpty
                   ? Text(
                       peerName.isNotEmpty ? peerName[0].toUpperCase() : '?',

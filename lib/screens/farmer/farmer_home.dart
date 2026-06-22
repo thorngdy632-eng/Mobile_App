@@ -85,16 +85,41 @@ class FarmerHome extends StatefulWidget {
   State<FarmerHome> createState() => _FarmerHomeState();
 }
 
-class _FarmerHomeState extends State<FarmerHome> {
+class _FarmerHomeState extends State<FarmerHome> with WidgetsBindingObserver {
   int _tab = 0;
   int _promoPage = 0;
   final PageController _promoCtrl = PageController();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Safety: if currentUser is null on cold start, refresh from Firestore
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthProvider>();
+      if (auth.currentUser == null) {
+        auth.refreshProfile();
+      }
+    });
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _promoCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final auth = context.read<AuthProvider>();
+      final app = context.read<AppProvider>();
+      auth.refreshProfile();
+      app.refreshAllStreams();
+      debugPrint('🔄 FarmerHome: app resumed — profile + streams refreshed');
+    }
   }
 
   @override

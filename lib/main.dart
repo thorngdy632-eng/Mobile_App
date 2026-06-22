@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart'; // ← បន្ថែមសម្រាប់គ្រប់គ្រងការកំណត់ Firestore
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
@@ -19,6 +20,14 @@ void main() async {
 
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // ════════════════════════════════════════════════════════════════════════
+  // បង្ខំឱ្យ Firestore ដំណើរការទាញទិន្នន័យផ្ទាល់ពី Cloud Server (បិទ Local Cache លើទូរស័ព្ទ)
+  // ការពារដាច់ខាតមិនឱ្យទូរស័ព្ទដៃចងចាំច្បាប់ Rules ចាស់ដែលនាំឱ្យគាំង [permission-denied]
+  // ════════════════════════════════════════════════════════════════════════
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: false,
   );
 
   // Read cached session BEFORE runApp
@@ -82,12 +91,12 @@ class AgriLogisticsApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => AppProvider()),
-        ChangeNotifierProvider(create: (_) => ChatProvider()),
+        ChangeNotifierProvider(create: (_) => ChatProvider()), // រក្សាទុក ChatProvider ដដែល
       ],
       child: MaterialApp(
         title: 'ប្រព័ន្ធដឹកជញ្ជូនកសិកម្ម — បន្ទាយមានជ័យ',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.theme,
+        theme: AppTheme.theme, // រក្សាទុក AppTheme ដើមរបស់បង
         home: initialScreen,
       ),
     );

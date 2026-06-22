@@ -2,69 +2,102 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ==========================================
-    // 1. LOCATIONS RULE
-    // ==========================================
+    // ════════════════════════════════════════════════════════════════════════
+    // HELPER: isAdmin()
+    // Reads the caller's OWN /users/{uid} doc and checks role == 'admin'.
+    // ⚠️  NEVER use inside the /users/{userId} list rule — it causes a
+    //     recursive get() on the same collection and Firebase rejects it.
+    //     Safe to use on ALL OTHER collections.
+    // ════════════════════════════════════════════════════════════════════════
+    function isAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // ════════════════════════════════════════════════════════════════════════
+    // 1. LOCATIONS
+    // ════════════════════════════════════════════════════════════════════════
     match /locations/{locationId} {
       allow read, create: if request.auth != null;
-      allow update, delete: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow update, delete: if request.auth != null
+        && (request.auth.uid == resource.data.userId || isAdmin());
     }
 
-    // ==========================================
-    // 2. USERS COLLECTION
-    // ==========================================
+    // ════════════════════════════════════════════════════════════════════════
+    // 2. USERS
+    //
+    //   get   → any auth'd user can read ANY user profile
+    //            (chat peer lookup, provider detail screens, etc.)
+    //   list  → any auth'd user can list
+    //            (AppProvider stream + admin dashboard — both need this)
+    //   write → owner OR admin
+    //   delete → admin ONLY
+    //
+    //   ⚠️  list does NOT use isAdmin() to avoid recursive get() on the
+    //       same collection. The admin-only restriction is enforced in the
+    //       Flutter UI (only admin screens show the user list).
+    // ════════════════════════════════════════════════════════════════════════
     match /users/{userId} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == userId;
+      allow get: if request.auth != null;
+
+      allow list: if request.auth != null;
+
+      allow create: if request.auth != null
+        && request.auth.uid == userId;
+
+      allow update: if request.auth != null
+        && (request.auth.uid == userId || isAdmin());
+
+      allow delete: if isAdmin();
     }
 
-    // ==========================================
-    // 3. CHATS & MESSAGES COLLECTION
-    // ==========================================
+    // ════════════════════════════════════════════════════════════════════════
+    // 3. CHATS & MESSAGES
+    // ════════════════════════════════════════════════════════════════════════
     match /chats/{chatId} {
-      allow read, update, delete: if request.auth != null && request.auth.uid in resource.data.participants;
+      allow read, update, delete: if request.auth != null
+        && (request.auth.uid in resource.data.participants || isAdmin());
       allow create: if request.auth != null;
 
       match /messages/{messageId} {
-        allow read, write: if request.auth != null && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
+        allow read, write: if request.auth != null
+          && (request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants
+              || isAdmin());
       }
     }
 
-    // ==========================================
-    // 4. SERVICE REQUESTS COLLECTION
-    // ==========================================
+    // ════════════════════════════════════════════════════════════════════════
+    // 4. SERVICE REQUESTS
+    // ════════════════════════════════════════════════════════════════════════
     match /serviceRequests/{requestId} {
       allow read, create: if request.auth != null;
-      // Any authenticated user can update (app handles service-type matching).
-      // The provider who accepted the job can also update (complete / give up).
       allow update: if request.auth != null;
-      allow delete: if request.auth != null && request.auth.uid == resource.data.farmerUid;
+      allow delete: if request.auth != null
+        && (request.auth.uid == resource.data.farmerUid || isAdmin());
     }
 
-    // ==========================================
-    // 5. TRACTOR JOBS COLLECTION
-    // ==========================================
+    // ════════════════════════════════════════════════════════════════════════
+    // 5. TRACTOR JOBS
+    // ════════════════════════════════════════════════════════════════════════
     match /tractorJobs/{jobId} {
       allow read, create: if request.auth != null;
       allow update, delete: if request.auth != null;
     }
 
-    // ==========================================
-    // 6. DRONE JOBS COLLECTION
-    // ==========================================
+    // ════════════════════════════════════════════════════════════════════════
+    // 6. DRONE JOBS
+    // ════════════════════════════════════════════════════════════════════════
     match /droneJobs/{jobId} {
       allow read, create: if request.auth != null;
       allow update, delete: if request.auth != null;
     }
 
-    // ==========================================
-    // 7. PROMOTIONS (ADS) COLLECTION
-    // ==========================================
+    // ════════════════════════════════════════════════════════════════════════
+    // 7. PROMOTIONS (ADS)
+    // ════════════════════════════════════════════════════════════════════════
     match /promotions/{promoId} {
       allow read: if request.auth != null;
-      allow create, update, delete: if request.auth != null
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+      allow create, update, delete: if isAdmin();
     }
-
   }
 }

@@ -44,7 +44,7 @@ class AdminDashboard extends StatefulWidget {
 }
 
 class _AdminDashboardState extends State<AdminDashboard>
-    with TickerProviderStateMixin {
+    with TickerProviderStateMixin, WidgetsBindingObserver {
   int _currentIndex = 0;
   late final AnimationController _fadeCtrl;
   late final Animation<double> _fadeAnim;
@@ -52,6 +52,7 @@ class _AdminDashboardState extends State<AdminDashboard>
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _fadeCtrl = AnimationController(
         vsync: this, duration: const Duration(milliseconds: 350));
     _fadeAnim = CurvedAnimation(parent: _fadeCtrl, curve: Curves.easeOut);
@@ -60,12 +61,31 @@ class _AdminDashboardState extends State<AdminDashboard>
       statusBarColor: Colors.transparent,
       statusBarIconBrightness: Brightness.light,
     ));
+    // Safety: if currentUser is null on cold start, refresh from Firestore
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthProvider>();
+      if (auth.currentUser == null) {
+        auth.refreshProfile();
+      }
+    });
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _fadeCtrl.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final auth = context.read<AuthProvider>();
+      final app = context.read<AppProvider>();
+      auth.refreshProfile();
+      app.refreshAllStreams();
+      debugPrint('🔄 AdminDashboard: app resumed — profile + streams refreshed');
+    }
   }
 
   void _switchTab(int i) {
@@ -374,35 +394,54 @@ class _DashboardTab extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(14),
-                child: Container(
-                  width: 46, height: 46,
-                  decoration: BoxDecoration(
-                    gradient: user?.profileImageUrl != null &&
-                            user!.profileImageUrl!.isNotEmpty
-                        ? null
-                        : const LinearGradient(
-                      colors: [_kAccentBlue, _kAccentCyan],
-                      begin: Alignment.topLeft, end: Alignment.bottomRight),
-                    borderRadius: BorderRadius.circular(14),
-                    boxShadow: [BoxShadow(
-                      color: _kAccentBlue.withOpacity(0.4),
-                      blurRadius: 12, offset: const Offset(0, 4))],
-                  ),
-                  child: user?.profileImageUrl != null &&
-                          user!.profileImageUrl!.isNotEmpty
-                      ? Image.memory(
-                          base64Decode(user.profileImageUrl!),
-                          fit: BoxFit.cover,
-                        )
-                      : Center(
-                          child: Text(
-                            user?.fullName?.isNotEmpty == true
-                                ? user!.fullName[0].toUpperCase() : 'A',
-                            style: const TextStyle(
-                              color: Colors.white, fontSize: 20,
-                              fontWeight: FontWeight.w800),
-                          ),
-                        ),
+                child: Builder(
+                  builder: (ctx) {
+                    ImageProvider? avatar;
+                    final imgStr = user?.profileImageUrl;
+                    if (imgStr != null && imgStr.isNotEmpty) {
+                      try { avatar = MemoryImage(base64Decode(imgStr)); } catch (_) {}
+                    }
+                    return Container(
+                      width: 46, height: 46,
+                      decoration: BoxDecoration(
+                        gradient: avatar == null
+                            ? const LinearGradient(
+                          colors: [_kAccentBlue, _kAccentCyan],
+                          begin: Alignment.topLeft, end: Alignment.bottomRight)
+                            : null,
+                        borderRadius: BorderRadius.circular(14),
+                        boxShadow: [BoxShadow(
+                          color: _kAccentBlue.withOpacity(0.4),
+                          blurRadius: 12, offset: const Offset(0, 4))],
+                      ),
+                      child: avatar != null
+                          ? ClipRRect(
+                              borderRadius: BorderRadius.circular(14),
+                              child: Image.memory(
+                                base64Decode(imgStr),
+                                fit: BoxFit.cover,
+                                errorBuilder: (_, __, ___) => Center(
+                                  child: Text(
+                                    user?.fullName?.isNotEmpty == true
+                                        ? user!.fullName[0].toUpperCase() : 'A',
+                                    style: const TextStyle(
+                                      color: Colors.white, fontSize: 20,
+                                      fontWeight: FontWeight.w800),
+                                  ),
+                                ),
+                              ),
+                            )
+                          : Center(
+                              child: Text(
+                                user?.fullName?.isNotEmpty == true
+                                    ? user!.fullName[0].toUpperCase() : 'A',
+                                style: const TextStyle(
+                                  color: Colors.white, fontSize: 20,
+                                  fontWeight: FontWeight.w800),
+                              ),
+                            ),
+                    );
+                  },
                 ),
               ),
               const SizedBox(width: 14),
@@ -1682,13 +1721,17 @@ class _SettingsTab extends StatelessWidget {
                                 ),
                                 shape: BoxShape.circle,
                               ),
-                              child: user?.profileImageUrl != null &&
-                                      user!.profileImageUrl!.isNotEmpty
-                                  ? Image.memory(
-                                      base64Decode(user.profileImageUrl!),
-                                      fit: BoxFit.cover,
-                                    )
-                                  : Center(
+                              child: (() {
+                                ImageProvider? avatar;
+                                final imgStr = user?.profileImageUrl;
+                                if (imgStr != null && imgStr.isNotEmpty) {
+                                  try { avatar = MemoryImage(base64Decode(imgStr)); } catch (_) {}
+                                }
+                                if (avatar != null) {
+                                  return Image.memory(
+                                    base64Decode(imgStr!),
+                                    fit: BoxFit.cover,
+                                    errorBuilder: (_, __, ___) => Center(
                                       child: Text(
                                         user?.fullName?.isNotEmpty == true
                                             ? user!.fullName[0].toUpperCase() : 'A',
@@ -1697,6 +1740,18 @@ class _SettingsTab extends StatelessWidget {
                                           fontWeight: FontWeight.w800),
                                       ),
                                     ),
+                                  );
+                                }
+                                return Center(
+                                  child: Text(
+                                    user?.fullName?.isNotEmpty == true
+                                        ? user!.fullName[0].toUpperCase() : 'A',
+                                    style: const TextStyle(
+                                      color: Colors.white, fontSize: 32,
+                                      fontWeight: FontWeight.w800),
+                                  ),
+                                );
+                              })(),
                             ),
                           ),
                         ),

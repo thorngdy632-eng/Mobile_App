@@ -1,4 +1,5 @@
 // lib/providers/app_provider.dart
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:geolocator/geolocator.dart';
@@ -211,6 +212,9 @@ class MonthlyUserStat {
 class AppProvider extends ChangeNotifier {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
+  // ── Stream subscriptions (for cancellation on refresh/dispose) ────────────
+  final List<StreamSubscription<QuerySnapshot>> _streamSubs = [];
+
   // ── Tractor jobs ──────────────────────────────────────────────────────────
   List<TractorJob> _tractorJobs = [];
   List<TractorJob> get tractorJobs => _tractorJobs;
@@ -253,8 +257,8 @@ class AppProvider extends ChangeNotifier {
   // ── Real-time Firestore streams ───────────────────────────────────────────
 
   void _initStreams() {
-    // Stream all tractor jobs, newest first
-    _db
+    // 1. Stream all Tractor Jobs
+    _streamSubs.add(_db
         .collection('tractorJobs')
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -264,10 +268,10 @@ class AppProvider extends ChangeNotifier {
           .toList();
       _notificationCount = pendingTractorJobs.length + pendingDroneJobs.length;
       notifyListeners();
-    });
+    }));
 
-    // Stream all drone jobs, newest first
-    _db
+    // 2. Stream all Drone Jobs
+    _streamSubs.add(_db
         .collection('droneJobs')
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -277,25 +281,25 @@ class AppProvider extends ChangeNotifier {
           .toList();
       _notificationCount = pendingTractorJobs.length + pendingDroneJobs.length;
       notifyListeners();
-    });
+    }));
 
-    // Stream every registered user, live — this powers all of the Admin
-    // dashboard's "dynamic" numbers: total user count, farmer count,
-    // service-provider count, and the monthly growth breakdown. Because
-    // this is a snapshots() listener (not a one-off get()), every number
-    // derived from `_allUsers` below updates automatically the instant a
-    // user registers, is edited, or is deleted — no manual refresh needed.
-    _db.collection('users').snapshots().listen((snapshot) {
-      _allUsers = snapshot.docs
-          .map((doc) => UserModel.fromMap(doc.data(), doc.id))
-          .toList();
-      notifyListeners();
-    });
+    // 3. Stream all Users with permission error handling (avoids crash for non-admins)
+    _streamSubs.add(_db.collection('users').snapshots().listen(
+      (snapshot) {
+        _allUsers = snapshot.docs
+            .map((doc) => UserModel.fromMap(doc.data(), doc.id))
+            .toList();
+        notifyListeners();
+      },
+      onError: (error) {
+        debugPrint('⚠️ Users stream error (Expected for non-admins): $error');
+        _allUsers = [];
+        notifyListeners();
+      },
+    ));
 
-    // Stream all farmer "drop location" service requests (5 home services),
-    // newest first. Used by both the Farmer (own requests) and Service
-    // Providers (matching requests of their serviceType).
-    _db
+    // 4. Stream all Service Requests
+    _streamSubs.add(_db
         .collection('serviceRequests')
         .orderBy('createdAt', descending: true)
         .snapshots()
@@ -304,7 +308,21 @@ class AppProvider extends ChangeNotifier {
           .map((doc) => ServiceRequest.fromMap(doc.data(), doc.id))
           .toList();
       notifyListeners();
-    });
+    }));
+  }
+
+  // ── Force-refresh all Firestore streams ──────────────────────────────────
+  // Called on app resume (WidgetsBindingObserver) to re-subscribe to every
+  // stream, ensuring fresh data after backgrounding or token expiry.
+  void refreshAllStreams() {
+    // Cancel existing subscriptions
+    for (final sub in _streamSubs) {
+      sub.cancel();
+    }
+    _streamSubs.clear();
+    // Re-create all streams
+    _initStreams();
+    debugPrint('🔄 AppProvider: all Firestore streams re-subscribed');
   }
 
   // ── Farmer: submit a tractor rental request ───────────────────────────────
@@ -687,5 +705,14 @@ class AppProvider extends ChangeNotifier {
 
     _isLoading = false;
     notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    for (final sub in _streamSubs) {
+      sub.cancel();
+    }
+    _streamSubs.clear();
+    super.dispose();
   }
 }

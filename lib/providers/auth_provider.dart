@@ -45,17 +45,131 @@ class AuthProvider extends ChangeNotifier {
 
   AuthProvider() {
     _auth.authStateChanges().listen(_onAuthStateChanged);
+    // On cold start, fetch profile immediately from cached SharedPreferences
+    // so home screens have _currentUser populated before Firebase resolves
+    _initFromCache();
+  }
+
+  /// Called on cold start — reads cached uid from SharedPreferences and
+  /// fetches the full user profile from Firestore in the background.
+  /// Sets _isInitializing = false so the UI isn't stuck waiting.
+  ///
+  /// On cold start, Firebase Auth may not have restored its session yet,
+  /// so Firestore queries fail with permission-denied. This method waits
+  /// for Firebase Auth to restore before attempting the Firestore fetch.
+  Future<void> _initFromCache() async {
+    final prefs = await SharedPreferences.getInstance();
+    final uid = prefs.getString(_kCachedUid);
+    if (uid == null || _currentUser != null) return;
+
+    // ── Wait for Firebase Auth to restore its session ──
+    // On cold start, _auth.currentUser may be null for a few hundred ms
+    // while Firebase validates the persisted token. If we hit Firestore
+    // before that, request.auth is null and the query is rejected.
+    if (_auth.currentUser == null) {
+      try {
+        await _auth.authStateChanges().firstWhere((u) => u != null)
+            .timeout(const Duration(seconds: 5));
+      } catch (_) {
+        // Timeout or stream ended — proceed with SharedPreferences fallback
+        debugPrint('⚠️ AuthProvider: Firebase Auth did not restore in time, using cache only');
+      }
+    }
+
+    // First try Firestore (Firebase Auth session should now be active)
+    try {
+      final doc = await _db.collection('users').doc(uid).get()
+          .timeout(const Duration(seconds: 10));
+      if (doc.exists && doc.data() != null) {
+        _currentUser = UserModel.fromMap(doc.data()!, uid);
+        await _cacheProfile(_currentUser!);
+        _isInitializing = false;
+        notifyListeners();
+        debugPrint('✅ AuthProvider: profile loaded from Firestore via cache uid=$uid');
+        return;
+      }
+    } catch (_) {}
+
+    // Fallback — build from SharedPreferences data
+    final roleName = prefs.getString(_kCachedRole);
+    final name = prefs.getString(_kCachedName);
+    if (roleName != null) {
+      final role = UserRole.values.firstWhere(
+        (r) => r.name == roleName,
+        orElse: () => UserRole.farmer,
+      );
+      _currentUser = UserModel(
+        uid: uid,
+        fullName: name ?? 'អ្នកប្រើប្រាស់',
+        email: _auth.currentUser?.email ?? '',
+        phoneNumber: _auth.currentUser?.phoneNumber ?? '',
+        role: role,
+        createdAt: DateTime.now(),
+      );
+      _isInitializing = false;
+      notifyListeners();
+      debugPrint('✅ AuthProvider: profile restored from SharedPreferences cache');
+    }
   }
 
   // ── Auth state listener ───────────────────────────────────────────────────
+  //
+  // On cold start, Firebase Auth's authStateChanges() may emit null briefly
+  // (token validation delay) BEFORE emitting the real User. This is a
+  // well-documented initialization artifact on Web/iOS.
+  //
+  // If we wipe _currentUser on that transient null, all Firestore queries
+  // fail with permission-denied because request.auth becomes null.
+  //
+  // Two guards prevent the transient wipe:
+  //   Guard 1 — _currentUser already populated from SharedPreferences cache
+  //   Guard 2 — SharedPreferences isLoggedIn flag is true (session active)
+  //
+  // The logout() method clears the cache BEFORE calling signOut(), so
+  // when authStateChanges fires null during logout, both guards fail
+  // and the wipe proceeds normally.
 
   Future<void> _onAuthStateChanged(User? firebaseUser) async {
     if (firebaseUser == null) {
+      // ── Guard 1: profile already loaded from cache → don't wipe ──
+      if (_currentUser != null) {
+        debugPrint('⏳ AuthProvider: ignoring null emission (profile already loaded)');
+        _isInitializing = false;
+        notifyListeners();
+        return;
+      }
+
+      // ── Guard 2: SharedPreferences has an active session ──
+      // _initFromCache() is probably still running its Firestore fetch
+      // (or waiting for Firebase Auth to restore). Don't wipe — the
+      // profile will arrive shortly.
+      final sessionCached = await isSessionCached();
+      if (sessionCached) {
+        debugPrint('⏳ AuthProvider: ignoring null emission (session cached, waiting for init)');
+        _isInitializing = false;
+        notifyListeners();
+        return;
+      }
+
+      // ── No cache, no profile → genuine logout or first-time user ──
+      // Both guards failed: cache was cleared by logout() or user never logged in.
+      debugPrint('🔄 AuthProvider: null auth state (no cached session)');
       _currentUser = null;
       _isInitializing = false;
       notifyListeners();
       return;
     }
+
+    // ── Firebase Auth confirmed a real user ──
+    if (_currentUser != null) {
+      // Profile already loaded from cache — refresh in background (fire-and-forget)
+      _isInitializing = false;
+      notifyListeners();
+      _fetchUserProfile(firebaseUser.uid);
+      return;
+    }
+
+    // No profile yet — fetch from Firestore
     await _fetchUserProfile(firebaseUser.uid);
     _isInitializing = false;
     notifyListeners();
@@ -312,20 +426,28 @@ class AuthProvider extends ChangeNotifier {
   // ── Logout ────────────────────────────────────────────────────────────────
 
   Future<void> logout() async {
+    // 1. Clear SharedPreferences FIRST so _onAuthStateChanged(null) — triggered
+    //    by signOut() below — doesn't hit Guard 2 (isSessionCached) and proceed
+    //    to wipe normally.
+    await clearCache();
+    _currentUser = null;
+    notifyListeners();
+    // 2. Now sign out from Firebase Auth (triggers authStateChanges → null).
     try {
       await _auth.signOut();
     } catch (_) {}
-    _currentUser = null;
-    await clearCache();
-    notifyListeners();
   }
 
   // ── Refresh profile from Firestore ────────────────────────────────────────
 
   Future<void> refreshProfile() async {
-    final uid = _auth.currentUser?.uid;
+    // Prefer Firebase Auth's live UID; fall back to SharedPreferences cache.
+    // If neither exists, there's nothing to refresh.
+    final uid = _auth.currentUser?.uid ?? await getCachedUid();
     if (uid != null) {
       await _fetchUserProfile(uid);
+    } else {
+      debugPrint('⚠️ refreshProfile: no UID available (Firebase null, no cache)');
     }
   }
 

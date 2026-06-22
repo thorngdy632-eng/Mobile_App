@@ -30,7 +30,7 @@ class ProviderHome extends StatefulWidget {
   State<ProviderHome> createState() => _ProviderHomeState();
 }
 
-class _ProviderHomeState extends State<ProviderHome> {
+class _ProviderHomeState extends State<ProviderHome> with WidgetsBindingObserver {
   int _currentIndex = 0;
 
   static const List<_NavItem> _navItems = [
@@ -40,6 +40,36 @@ class _ProviderHomeState extends State<ProviderHome> {
     _NavItem(Icons.chat_bubble_outline, Icons.chat_bubble, 'ការសន្ទនា'),
     _NavItem(Icons.person_outline, Icons.person, 'គណនី'),
   ];
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    // Safety: if currentUser is null on cold start, refresh from Firestore
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthProvider>();
+      if (auth.currentUser == null) {
+        auth.refreshProfile();
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      final auth = context.read<AuthProvider>();
+      final app = context.read<AppProvider>();
+      auth.refreshProfile();
+      app.refreshAllStreams();
+      debugPrint('🔄 ProviderHome: app resumed — profile + streams refreshed');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
